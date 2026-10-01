@@ -1,0 +1,221 @@
+/*
+ * Checkbox Sty1es
+ *
+ * Regras genéricas: toda a aparência vem das variáveis --cbs-*, definidas por
+ * estilo em src/checkbox-styles.ts. O build gera, no fim deste arquivo, as
+ * definições por tarefa (li.task-list-item / .HyperMD-task-line, conforme o
+ * data-task) e por elemento [data-cbs-style] (menu e configurações).
+ * styles.css é gerado: edite src/styles.base.css.
+ * Tamanho, margens e clique continuam sendo os nativos do Obsidian.
+ */
+
+/* ---------- Checkbox ---------- */
+
+:is(li.task-list-item, .HyperMD-task-line, [data-cbs-style]) input[type="checkbox"]:is(.task-list-item-checkbox, .cbs-checkbox) {
+	position: relative;
+	border: var(--cbs-border-width) solid var(--cbs-border-color);
+	border-radius: var(--cbs-radius);
+	background-color: var(--cbs-bg);
+	transition:
+		background-color var(--cbs-duration) ease,
+		border-color var(--cbs-duration) ease,
+		box-shadow var(--cbs-duration) ease;
+}
+
+:is(li.task-list-item, .HyperMD-task-line, [data-cbs-style]) input[type="checkbox"]:is(.task-list-item-checkbox, .cbs-checkbox):is(:hover, .cbs-force-hover) {
+	border-color: var(--cbs-border-color-hover);
+	background-color: var(--cbs-bg-hover);
+}
+
+:is(li.task-list-item, .HyperMD-task-line, [data-cbs-style]) input[type="checkbox"]:is(.task-list-item-checkbox, .cbs-checkbox):checked {
+	border-color: var(--cbs-checked-border-color);
+	background-color: var(--cbs-checked-bg);
+	box-shadow: var(--cbs-checked-shadow);
+}
+
+:is(li.task-list-item, .HyperMD-task-line, [data-cbs-style]) input[type="checkbox"]:is(.task-list-item-checkbox, .cbs-checkbox):checked:is(:hover, .cbs-force-hover) {
+	border-color: var(--cbs-checked-border-color-hover);
+	background-color: var(--cbs-checked-bg-hover);
+}
+
+:is(li.task-list-item, .HyperMD-task-line, [data-cbs-style]) input[type="checkbox"]:is(.task-list-item-checkbox, .cbs-checkbox):focus-visible {
+	box-shadow: 0 0 0 3px var(--background-modifier-border-focus);
+}
+
+/* Marcador: sempre presente, revelado com fade + scale ao marcar. */
+:is(li.task-list-item, .HyperMD-task-line, [data-cbs-style]) input[type="checkbox"]:is(.task-list-item-checkbox, .cbs-checkbox)::after {
+	content: "";
+	display: block;
+	position: absolute;
+	inset: calc(var(--cbs-border-width) * -1);
+	width: auto;
+	height: auto;
+	background-color: var(--cbs-mark-color);
+	-webkit-mask-image: var(--cbs-mark);
+	-webkit-mask-size: 100% 100%;
+	-webkit-mask-position: center;
+	-webkit-mask-repeat: no-repeat;
+	opacity: 0;
+	transform: scale(0.5);
+	transition:
+		opacity var(--cbs-duration) ease,
+		transform var(--cbs-duration) cubic-bezier(0.2, 0.9, 0.3, 1.2),
+		background-color var(--cbs-duration) ease;
+}
+
+:is(li.task-list-item, .HyperMD-task-line, [data-cbs-style]) input[type="checkbox"]:is(.task-list-item-checkbox, .cbs-checkbox):checked::after {
+	inset: calc(var(--cbs-border-width) * -1);
+	width: auto;
+	height: auto;
+	background-color: var(--cbs-mark-color);
+	-webkit-mask-image: var(--cbs-mark);
+	-webkit-mask-size: 100% 100%;
+	-webkit-mask-position: center;
+	opacity: 1;
+	transform: none;
+}
+
+:is(li.task-list-item, .HyperMD-task-line, [data-cbs-style]) input[type="checkbox"]:is(.task-list-item-checkbox, .cbs-checkbox):checked:is(:hover, .cbs-force-hover)::after {
+	background-color: var(--cbs-mark-color-hover);
+}
+
+/* ---------- Efeito no texto da tarefa marcada ---------- */
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-task-line[data-task]:not([data-task=" "]),
+:is(.markdown-rendered, .markdown-preview-view) :is(ul, ol) > li.task-list-item[data-task]:not([data-task=""]):not([data-task=" "]),
+.cbs-checkbox:checked + .cbs-preview-text {
+	color: var(--cbs-text-color);
+	text-decoration: var(--cbs-text-decoration);
+	text-shadow: var(--cbs-text-shadow);
+	font-weight: var(--cbs-text-weight);
+	font-style: var(--cbs-text-style);
+}
+
+/* Subtarefas desmarcadas não herdam o efeito da tarefa-mãe. */
+:is(.markdown-rendered, .markdown-preview-view) li.task-list-item:is(:not([data-task]), [data-task=""], [data-task=" "]) {
+	text-shadow: none;
+	font-weight: var(--font-normal, 400);
+	font-style: normal;
+}
+
+.cbs-preview-text {
+	transition:
+		color var(--cbs-duration) ease,
+		text-shadow var(--cbs-duration) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:is(li.task-list-item, .HyperMD-task-line, [data-cbs-style]) input[type="checkbox"]:is(.task-list-item-checkbox, .cbs-checkbox),
+	:is(li.task-list-item, .HyperMD-task-line, [data-cbs-style]) input[type="checkbox"]:is(.task-list-item-checkbox, .cbs-checkbox)::after,
+	.cbs-preview-text {
+		transition: none;
+	}
+}
+
+/* ---------- Menu de estilos ---------- */
+
+input[type="checkbox"].cbs-checkbox {
+	flex: none;
+	margin: 0;
+}
+
+.cbs-menu-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.cbs-menu-item .cbs-checkbox {
+	pointer-events: none;
+}
+
+.cbs-menu-effect {
+	margin-inline-start: var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+/* ---------- Configurações ---------- */
+
+.cbs-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+	gap: var(--size-4-2);
+	margin: var(--size-4-2) 0 var(--size-4-4);
+}
+
+.cbs-card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background-color: var(--background-primary);
+	cursor: var(--cursor);
+	transition:
+		border-color 120ms ease,
+		box-shadow 120ms ease;
+}
+
+.cbs-card:hover {
+	border-color: var(--background-modifier-border-hover);
+}
+
+.cbs-card:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.cbs-card.is-selected {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+.cbs-card-sample {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-2) 0;
+	pointer-events: none;
+}
+
+.cbs-card-desc {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	line-height: var(--line-height-tight);
+}
+
+.cbs-preview {
+	padding: var(--size-4-4);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background-color: var(--background-primary);
+}
+
+.cbs-preview-title {
+	margin-bottom: var(--size-4-3);
+	font-weight: var(--font-semibold);
+}
+
+.cbs-preview-columns {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: var(--size-4-4);
+}
+
+.cbs-preview-label {
+	margin-bottom: var(--size-4-1);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.cbs-preview-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-2) 0;
+	cursor: var(--cursor);
+}
