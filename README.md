@@ -24,9 +24,9 @@ Pick a visual style for each task checkbox in Obsidian. Clicking an unchecked ta
 
 ## Settings
 
-- **Menu ao marcar** — open the style menu when clicking an unchecked task. When off, a click checks the task as usual and the menu stays on right-click.
-- **Ao clicar numa tarefa marcada** — either uncheck directly or open the menu again.
-- **Estilo padrão** — the look of unchecked and `[x]` tasks.
+- **Menu on check** — open the style menu when clicking an unchecked task. When off, a click checks the task as usual and the menu stays on right-click.
+- **When clicking a checked task** — either uncheck directly or open the menu again.
+- **Default style** — the look of unchecked and `[x]` tasks.
 
 ## Limitations
 

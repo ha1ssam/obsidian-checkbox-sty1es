@@ -141,8 +141,8 @@ export default class CheckboxStylesPlugin extends Plugin {
 			menu.addSeparator();
 			addOption({
 				styleId: this.settings.defaultStyle,
-				name: "Desmarcada",
-				hint: "Voltar a tarefa para não concluída",
+				name: "Unchecked",
+				hint: "Mark the task as not done",
 				char: UNCHECKED_CHAR,
 				selected: false,
 			});

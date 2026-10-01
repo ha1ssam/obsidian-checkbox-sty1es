@@ -1,7 +1,7 @@
 {
 	"name": "checkbox-sty1es",
 	"version": "1.0.0",
-	"description": "Estilos visuais para as checkboxes de tarefas do Obsidian.",
+	"description": "Per-task checkbox styles for Obsidian.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {

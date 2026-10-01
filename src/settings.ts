@@ -18,11 +18,10 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		new Setting(containerEl).setName("Checkbox Style").setHeading();
 		new Setting(containerEl)
-			.setName("Menu ao marcar")
+			.setName("Menu on check")
 			.setDesc(
-				"Ao clicar numa tarefa desmarcada, abre um menu para escolher o estilo dela. Desligado, o clique marca normalmente e o menu fica no botão direito."
+				"Clicking an unchecked task opens a menu to pick its style. When off, a click checks the task as usual and the menu stays on right-click."
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -32,14 +31,14 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 					)
 			);
 		new Setting(containerEl)
-			.setName("Ao clicar numa tarefa marcada")
+			.setName("When clicking a checked task")
 			.setDesc(
-				"Desmarcar direto, ou abrir o menu de novo para trocar o estilo (o menu inclui a opção \"Desmarcada\")."
+				"Uncheck it right away, or open the menu again to change its style (the menu includes an \"Unchecked\" option)."
 			)
 			.addDropdown((dropdown) =>
 				dropdown
-					.addOption("uncheck", "Desmarcar")
-					.addOption("menu", "Abrir o menu")
+					.addOption("uncheck", "Uncheck")
+					.addOption("menu", "Open the menu")
 					.setValue(this.plugin.settings.clickOnChecked)
 					.onChange((value) =>
 						this.plugin.updateSettings({
@@ -48,14 +47,14 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 					)
 			);
 		new Setting(containerEl)
-			.setName("Estilo padrão")
+			.setName("Default style")
 			.setDesc(
-				"Usado nas tarefas desmarcadas e nas marcadas com [x]. Cada estilo tem também um efeito próprio no texto da tarefa."
+				"Used for unchecked tasks and tasks marked with [x]. Each style also applies its own effect to the task text."
 			);
 
 		const grid = containerEl.createDiv({
 			cls: "cbs-grid",
-			attr: { role: "radiogroup", "aria-label": "Estilo padrão de checkbox" },
+			attr: { role: "radiogroup", "aria-label": "Default checkbox style" },
 		});
 		const preview = this.renderPreview(containerEl);
 
@@ -120,8 +119,8 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 			const column = columns.createDiv({ cls: "cbs-preview-column" });
 			column.createDiv({ cls: "cbs-preview-label", text: label });
 			for (const [text, checked] of [
-				["Tarefa não concluída", false],
-				["Tarefa concluída", true],
+				["Unfinished task", false],
+				["Finished task", true],
 			] as const) {
 				const row = column.createEl("label", { cls: "cbs-preview-row" });
 				const input = createCheckbox(row, checked);
@@ -132,7 +131,7 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 
 		return {
 			show: (style) => {
-				title.setText(`Prévia — ${style.name}`);
+				title.setText(`Preview: ${style.name}`);
 				preview.dataset.cbsStyle = style.id;
 			},
 		};
