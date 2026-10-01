@@ -105,7 +105,10 @@ const define = (
 	...overrides: Partial<CheckboxStyleVars>[]
 ): CheckboxStyle => ({
 	...info,
-	vars: Object.assign({}, BASE, ...overrides),
+	vars: overrides.reduce<CheckboxStyleVars>(
+		(vars, override) => ({ ...vars, ...override }),
+		BASE
+	),
 });
 
 export const CHECKBOX_STYLES: CheckboxStyle[] = [

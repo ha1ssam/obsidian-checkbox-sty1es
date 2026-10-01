@@ -1,10 +1,26 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, SettingDefinitionItem } from "obsidian";
 import {
 	CHECKBOX_STYLES,
 	CheckboxStyle,
 	getCheckboxStyle,
 } from "./checkbox-styles";
 import type CheckboxStylesPlugin from "./main";
+
+const MENU_ON_CHECK = {
+	name: "Menu on check",
+	desc: "Clicking an unchecked task opens a menu to pick its style. When off, a click checks the task as usual and the menu stays on right-click.",
+};
+
+const CLICK_ON_CHECKED = {
+	name: "When clicking a checked task",
+	desc: 'Uncheck it right away, or open the menu again to change its style (the menu includes an "Unchecked" option).',
+	options: { uncheck: "Uncheck", menu: "Open the menu" },
+};
+
+const DEFAULT_STYLE = {
+	name: "Default style",
+	desc: "Used for unchecked tasks and tasks marked with [x]. Each style also applies its own effect to the task text.",
+};
 
 export class CheckboxStyleSettingTab extends PluginSettingTab {
 	private plugin: CheckboxStylesPlugin;
@@ -14,49 +30,82 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			{
+				...MENU_ON_CHECK,
+				control: { type: "toggle", key: "menuOnCheck" },
+			},
+			{
+				name: CLICK_ON_CHECKED.name,
+				desc: CLICK_ON_CHECKED.desc,
+				control: {
+					type: "dropdown",
+					key: "clickOnChecked",
+					options: CLICK_ON_CHECKED.options,
+				},
+			},
+			{
+				...DEFAULT_STYLE,
+				aliases: CHECKBOX_STYLES.map((style) => style.name),
+				render: (setting) => this.renderStyleSetting(setting),
+			},
+		];
+	}
+
+	getControlValue(key: string): unknown {
+		if (key === "menuOnCheck") return this.plugin.settings.menuOnCheck;
+		if (key === "clickOnChecked") return this.plugin.settings.clickOnChecked;
+		return undefined;
+	}
+
+	setControlValue(key: string, value: unknown): Promise<void> {
+		if (key === "menuOnCheck") {
+			return this.plugin.updateSettings({ menuOnCheck: value === true });
+		}
+		if (key === "clickOnChecked") {
+			return this.plugin.updateSettings({
+				clickOnChecked: value === "menu" ? "menu" : "uncheck",
+			});
+		}
+		return Promise.resolve();
+	}
+
+	/** Fallback para versões do Obsidian anteriores à 1.13.0. */
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName("Menu on check")
-			.setDesc(
-				"Clicking an unchecked task opens a menu to pick its style. When off, a click checks the task as usual and the menu stays on right-click."
-			)
+			.setName(MENU_ON_CHECK.name)
+			.setDesc(MENU_ON_CHECK.desc)
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.menuOnCheck)
-					.onChange((value) =>
-						this.plugin.updateSettings({ menuOnCheck: value })
-					)
+					.onChange((value) => this.setControlValue("menuOnCheck", value))
 			);
 		new Setting(containerEl)
-			.setName("When clicking a checked task")
-			.setDesc(
-				"Uncheck it right away, or open the menu again to change its style (the menu includes an \"Unchecked\" option)."
-			)
+			.setName(CLICK_ON_CHECKED.name)
+			.setDesc(CLICK_ON_CHECKED.desc)
 			.addDropdown((dropdown) =>
 				dropdown
-					.addOption("uncheck", "Uncheck")
-					.addOption("menu", "Open the menu")
+					.addOptions(CLICK_ON_CHECKED.options)
 					.setValue(this.plugin.settings.clickOnChecked)
-					.onChange((value) =>
-						this.plugin.updateSettings({
-							clickOnChecked: value === "menu" ? "menu" : "uncheck",
-						})
-					)
+					.onChange((value) => this.setControlValue("clickOnChecked", value))
 			);
-		new Setting(containerEl)
-			.setName("Default style")
-			.setDesc(
-				"Used for unchecked tasks and tasks marked with [x]. Each style also applies its own effect to the task text."
-			);
+		this.renderStyleSetting(new Setting(containerEl));
+	}
 
-		const grid = containerEl.createDiv({
+	/** Linha "Default style": galeria de cartões + prévia. */
+	private renderStyleSetting(setting: Setting): void {
+		setting.setName(DEFAULT_STYLE.name).setDesc(DEFAULT_STYLE.desc);
+		setting.settingEl.addClass("cbs-style-setting");
+
+		const grid = setting.settingEl.createDiv({
 			cls: "cbs-grid",
 			attr: { role: "radiogroup", "aria-label": "Default checkbox style" },
 		});
-		const preview = this.renderPreview(containerEl);
+		const preview = this.renderPreview(setting.settingEl);
 
 		const cards = new Map<string, HTMLElement>();
 		const refresh = () => {
@@ -82,15 +131,14 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 			card.createDiv({ cls: "cbs-card-desc", text: style.description });
 			card.createDiv({ cls: "cbs-card-desc", text: `${style.effect}.` });
 
-			const select = async () => {
-				await this.plugin.updateSettings({ defaultStyle: style.id });
-				refresh();
+			const select = () => {
+				void this.plugin.updateSettings({ defaultStyle: style.id }).then(refresh);
 			};
 			card.addEventListener("click", select);
 			card.addEventListener("keydown", (evt) => {
 				if (evt.key === "Enter" || evt.key === " ") {
 					evt.preventDefault();
-					void select();
+					select();
 				}
 			});
 			// Prévia antes de selecionar: passar o mouse ou focar o cartão.

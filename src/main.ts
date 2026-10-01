@@ -30,7 +30,7 @@ const DEFAULT_SETTINGS: CheckboxStylesSettings = {
 };
 
 export default class CheckboxStylesPlugin extends Plugin {
-	settings: CheckboxStylesSettings = DEFAULT_SETTINGS;
+	settings: CheckboxStylesSettings = { ...DEFAULT_SETTINGS };
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -68,7 +68,8 @@ export default class CheckboxStylesPlugin extends Plugin {
 	}
 
 	private async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const saved = (await this.loadData()) as Partial<CheckboxStylesSettings> | null;
+		this.settings = { ...DEFAULT_SETTINGS, ...saved };
 		this.settings.defaultStyle = getCheckboxStyle(this.settings.defaultStyle).id;
 		if (this.settings.clickOnChecked !== "menu") {
 			this.settings.clickOnChecked = "uncheck";
