@@ -1,3 +1,5 @@
+![Checkbox Sty1es: ten checkbox styles for Obsidian](./assets/banner.png)
+
 # Checkbox Sty1es
 
 Pick a visual style for each task checkbox in Obsidian. Clicking an unchecked task opens a menu with ten styles; each style changes how the checkbox looks and applies a matching effect to the task text.
