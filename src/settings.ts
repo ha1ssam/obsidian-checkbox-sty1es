@@ -6,20 +6,15 @@ import {
 } from "./checkbox-styles";
 import type CheckboxStylesPlugin from "./main";
 
-const MENU_ON_CHECK = {
-	name: "Menu on check",
-	desc: "Clicking an unchecked task opens a menu to pick its style. When off, a click checks the task as usual and the menu stays on right-click.",
-};
-
-const CLICK_ON_CHECKED = {
-	name: "When clicking a checked task",
-	desc: 'Uncheck it right away, or open the menu again to change its style (the menu includes an "Unchecked" option).',
-	options: { uncheck: "Uncheck", menu: "Open the menu" },
+const MENU_BUTTON = {
+	name: "Menu button",
+	desc: "The mouse button that opens the style menu on a checkbox. The other button checks and unchecks the task.",
+	options: { left: "Left click", right: "Right click" },
 };
 
 const DEFAULT_STYLE = {
 	name: "Default style",
-	desc: "Used for unchecked tasks and tasks marked with [x]. Each style also applies its own effect to the task text.",
+	desc: "The style applied when you check a task with the other button. Also used for unchecked tasks and tasks marked with [x].",
 };
 
 export class CheckboxStyleSettingTab extends PluginSettingTab {
@@ -33,16 +28,12 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 	getSettingDefinitions(): SettingDefinitionItem[] {
 		return [
 			{
-				...MENU_ON_CHECK,
-				control: { type: "toggle", key: "menuOnCheck" },
-			},
-			{
-				name: CLICK_ON_CHECKED.name,
-				desc: CLICK_ON_CHECKED.desc,
+				name: MENU_BUTTON.name,
+				desc: MENU_BUTTON.desc,
 				control: {
 					type: "dropdown",
-					key: "clickOnChecked",
-					options: CLICK_ON_CHECKED.options,
+					key: "menuButton",
+					options: MENU_BUTTON.options,
 				},
 			},
 			{
@@ -54,18 +45,14 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 	}
 
 	getControlValue(key: string): unknown {
-		if (key === "menuOnCheck") return this.plugin.settings.menuOnCheck;
-		if (key === "clickOnChecked") return this.plugin.settings.clickOnChecked;
+		if (key === "menuButton") return this.plugin.settings.menuButton;
 		return undefined;
 	}
 
 	setControlValue(key: string, value: unknown): Promise<void> {
-		if (key === "menuOnCheck") {
-			return this.plugin.updateSettings({ menuOnCheck: value === true });
-		}
-		if (key === "clickOnChecked") {
+		if (key === "menuButton") {
 			return this.plugin.updateSettings({
-				clickOnChecked: value === "menu" ? "menu" : "uncheck",
+				menuButton: value === "right" ? "right" : "left",
 			});
 		}
 		return Promise.resolve();
@@ -77,21 +64,13 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName(MENU_ON_CHECK.name)
-			.setDesc(MENU_ON_CHECK.desc)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.menuOnCheck)
-					.onChange((value) => this.setControlValue("menuOnCheck", value))
-			);
-		new Setting(containerEl)
-			.setName(CLICK_ON_CHECKED.name)
-			.setDesc(CLICK_ON_CHECKED.desc)
+			.setName(MENU_BUTTON.name)
+			.setDesc(MENU_BUTTON.desc)
 			.addDropdown((dropdown) =>
 				dropdown
-					.addOptions(CLICK_ON_CHECKED.options)
-					.setValue(this.plugin.settings.clickOnChecked)
-					.onChange((value) => this.setControlValue("clickOnChecked", value))
+					.addOptions(MENU_BUTTON.options)
+					.setValue(this.plugin.settings.menuButton)
+					.onChange((value) => this.setControlValue("menuButton", value))
 			);
 		this.renderStyleSetting(new Setting(containerEl));
 	}

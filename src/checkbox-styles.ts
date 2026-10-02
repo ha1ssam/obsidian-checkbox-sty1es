@@ -68,6 +68,85 @@ export const MARKS = {
 	none: "none",
 };
 
+/** Forma preenchida com um glifo vazado (recorte feito por máscara SVG). */
+const knockout = (shape: string, cut: string): string =>
+	svgMask(
+		`<mask id="m"><rect width="16" height="16" fill="#fff"/>` +
+			`<g fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${cut}</g></mask>` +
+			`<g mask="url(#m)">${shape}</g>`
+	);
+
+const badge = (cut: string): string =>
+	knockout('<circle cx="8" cy="8" r="7"/>', cut);
+
+const cutDot = (cx: number, cy: number, r = 0.95): string =>
+	`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#000" stroke="none"/>`;
+
+const THUMB =
+	'<rect x="1.6" y="7" width="2.6" height="7" rx=".7"/>' +
+	'<path d="M5.4 7.1l2.5-5.2c1.1 0 1.9.9 1.9 2v2h3a1.5 1.5 0 0 1 1.5 1.8l-.9 4.9a1.6 1.6 0 0 1-1.6 1.3H5.4z"/>';
+
+export const ICONS = {
+	half: svgMask(
+		'<circle cx="8" cy="8" r="6.2" fill="none" stroke="#000" stroke-width="1.6"/>' +
+			'<path d="M8 1.8a6.2 6.2 0 0 0 0 12.4z"/>'
+	),
+	forward: svgMask(
+		'<path d="M2.2 2.6l11.6 5.4-11.6 5.4 1.9-5.4z" stroke="#000" stroke-width="1" stroke-linejoin="round"/>'
+	),
+	schedule: knockout(
+		'<rect x="2" y="3" width="12" height="11.2" rx="2.2"/>' +
+			'<path d="M5.2 1.8v2.4M10.8 1.8v2.4" stroke="#000" stroke-width="1.6" stroke-linecap="round"/>',
+		'<path d="M4.4 7h7.2"/>'
+	),
+	question: badge(
+		'<path d="M6.1 6.3a2 2 0 1 1 3 1.7c-.7.4-1.1.8-1.1 1.6"/>' + cutDot(8, 11.9)
+	),
+	important: knockout(
+		'<path d="M8 2.2l6.3 11.2H1.7z" stroke="#000" stroke-width="1.6" stroke-linejoin="round"/>',
+		'<path d="M8 6.4v3"/>' + cutDot(8, 11.6)
+	),
+	star: svgMask(
+		'<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" stroke="#000" stroke-width="1" stroke-linejoin="round"/>'
+	),
+	quote: badge(
+		'<path d="M4.6 10c0-2.2.8-3.6 2.4-4.2M9 10c0-2.2.8-3.6 2.4-4.2"/>' +
+			cutDot(5.5, 10, 1.1) +
+			cutDot(9.9, 10, 1.1)
+	),
+	location: knockout(
+		'<path d="M8 1.4a5.1 5.1 0 0 1 5.1 5.1c0 3.4-5.1 8.1-5.1 8.1S2.9 9.9 2.9 6.5A5.1 5.1 0 0 1 8 1.4z"/>',
+		cutDot(8, 6.5, 1.9)
+	),
+	bookmark: svgMask(
+		'<path d="M4.2 2.2h7.6v11.6L8 11l-3.8 2.8z" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>'
+	),
+	info: badge(cutDot(8, 4.9) + '<path d="M8 7.6v4"/>'),
+	savings: badge(
+		'<path stroke-width="1.2" d="M9.9 6.1c-.3-.7-1-1.1-1.9-1.1-1.1 0-1.9.6-1.9 1.4 0 2 3.9 1 3.9 3.1 0 .9-.8 1.5-2 1.5-.9 0-1.7-.4-2-1.1M8 3.6v8.8"/>'
+	),
+	idea: svgMask(
+		'<path d="M8 1.6a4.5 4.5 0 0 0-2.7 8.1c.4.3.6.8.6 1.3h4.2c0-.5.2-1 .6-1.3A4.5 4.5 0 0 0 8 1.6z"/>' +
+			'<path d="M6.2 12.1h3.6v1.2a1.1 1.1 0 0 1-1.1 1.1H7.3a1.1 1.1 0 0 1-1.1-1.1z"/>'
+	),
+	thumbUp: svgMask(THUMB),
+	thumbDown: svgMask(`<g transform="rotate(180 8 8)">${THUMB}</g>`),
+	fire: svgMask(
+		'<path d="M8.2 1.4c.5 2.3 3.8 3.8 3.8 7.6a4 4 0 0 1-8 0c0-1.6.7-2.6 1.6-3.4.1 1 .7 1.7 1.4 1.8-.4-2 .1-4.3 1.2-6z"/>'
+	),
+	key: svgMask(
+		'<circle cx="5.3" cy="10.7" r="2.6" fill="none" stroke="#000" stroke-width="1.8"/>' +
+			'<path d="M7.3 8.7l5.6-5.6M10.6 5.4l1.9 1.9" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>'
+	),
+	cake: svgMask(
+		'<rect x="2.2" y="8.2" width="11.6" height="6" rx="1.3"/>' +
+			'<rect x="3.8" y="5.4" width="8.4" height="3.6" rx="1.1"/>' +
+			'<path d="M5.6 2.2v1.8M8 2.2v1.8M10.4 2.2v1.8" stroke="#000" stroke-width="1.2" stroke-linecap="round"/>'
+	),
+	trendUp: stroke("M2 11.4l3.9-3.9 2.7 2.7L13.8 5M10.2 4.8h3.8v3.8"),
+	trendDown: stroke("M2 4.6l3.9 3.9 2.7-2.7L13.8 11M10.2 11.2h3.8V7.4"),
+};
+
 /** Preenchido com a cor de destaque e marcador contrastante (padrão do Obsidian). */
 const BASE: CheckboxStyleVars = {
 	radius: "var(--checkbox-radius)",
@@ -111,7 +190,7 @@ const define = (
 	),
 });
 
-export const CHECKBOX_STYLES: CheckboxStyle[] = [
+const BOX_STYLES: CheckboxStyle[] = [
 	define(
 		{
 			id: "classic",
@@ -265,6 +344,63 @@ export const CHECKBOX_STYLES: CheckboxStyle[] = [
 		}
 	),
 ];
+
+/** Estilo de ícone: a caixa some e o ícone colorido ocupa o lugar dela. */
+const icon = (mark: string, color: string): Partial<CheckboxStyleVars> => ({
+	checkedBg: "transparent",
+	checkedBgHover: "transparent",
+	checkedBorderColor: "transparent",
+	checkedBorderColorHover: "transparent",
+	mark,
+	markColor: color,
+	markColorHover: color,
+});
+
+const MUTED_TEXT: Partial<CheckboxStyleVars> = { textColor: "var(--text-muted)" };
+const BOLD_TEXT: Partial<CheckboxStyleVars> = { textWeight: "var(--font-bold, 700)" };
+const ITALIC_TEXT: Partial<CheckboxStyleVars> = { textStyle: "italic" };
+
+const iconStyle = (
+	id: string,
+	name: string,
+	char: string,
+	mark: string,
+	color: string,
+	effect = "Normal text",
+	text: Partial<CheckboxStyleVars> = {}
+): CheckboxStyle =>
+	define(
+		{ id, name, char, description: `${name} icon.`, effect },
+		icon(mark, color),
+		text
+	);
+
+const ICON_STYLES: CheckboxStyle[] = [
+	iconStyle("in-progress", "In progress", "/", ICONS.half, "var(--color-blue)"),
+	iconStyle("forwarded", "Forwarded", ">", ICONS.forward, "var(--text-muted)", "Muted text", MUTED_TEXT),
+	iconStyle("scheduled", "Scheduled", "<", ICONS.schedule, "var(--text-muted)", "Muted text", MUTED_TEXT),
+	iconStyle("question", "Question", "?", ICONS.question, "var(--color-yellow)"),
+	iconStyle("important", "Important", "!", ICONS.important, "var(--color-orange)", "Bold text", BOLD_TEXT),
+	iconStyle("star", "Star", "*", ICONS.star, "var(--color-yellow)"),
+	iconStyle("quote", "Quote", '"', ICONS.quote, "var(--color-cyan)", "Italic text", ITALIC_TEXT),
+	iconStyle("location", "Location", "l", ICONS.location, "var(--color-pink)"),
+	iconStyle("bookmark", "Bookmark", "b", ICONS.bookmark, "var(--color-orange)"),
+	iconStyle("info", "Info", "i", ICONS.info, "var(--color-blue)"),
+	iconStyle("savings", "Savings", "S", ICONS.savings, "var(--color-green)"),
+	iconStyle("idea", "Idea", "I", ICONS.idea, "var(--color-yellow)"),
+	iconStyle("pro", "Pro", "p", ICONS.thumbUp, "var(--color-green)"),
+	iconStyle("con", "Con", "C", ICONS.thumbDown, "var(--color-orange)"),
+	iconStyle("fire", "Fire", "F", ICONS.fire, "var(--color-red)"),
+	iconStyle("key", "Key", "k", ICONS.key, "var(--color-yellow)"),
+	iconStyle("win", "Win", "w", ICONS.cake, "var(--color-purple)"),
+	iconStyle("up", "Up", "u", ICONS.trendUp, "var(--color-green)"),
+	iconStyle("down", "Down", "d", ICONS.trendDown, "var(--color-red)"),
+];
+
+/** Grupos na ordem em que aparecem no menu (separados por uma linha). */
+export const STYLE_GROUPS: CheckboxStyle[][] = [BOX_STYLES, ICON_STYLES];
+
+export const CHECKBOX_STYLES: CheckboxStyle[] = [...BOX_STYLES, ...ICON_STYLES];
 
 export const DEFAULT_STYLE_ID = "classic";
 

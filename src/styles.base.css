@@ -119,6 +119,22 @@ input[type="checkbox"].cbs-checkbox {
 	margin: 0;
 }
 
+/* Lista longa: altura limitada, com rolagem. */
+.menu:has(.cbs-menu-item) {
+	display: flex;
+	flex-direction: column;
+	max-height: min(360px, 60vh);
+}
+
+.menu:has(.cbs-menu-item) > .menu-scroll {
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.menu:has(.cbs-menu-item):not(:has(> .menu-scroll)) {
+	overflow-y: auto;
+}
+
 .cbs-menu-item {
 	display: inline-flex;
 	align-items: center;
@@ -127,12 +143,6 @@ input[type="checkbox"].cbs-checkbox {
 
 .cbs-menu-item .cbs-checkbox {
 	pointer-events: none;
-}
-
-.cbs-menu-effect {
-	margin-inline-start: var(--size-4-2);
-	font-size: var(--font-ui-smaller);
-	color: var(--text-faint);
 }
 
 /* ---------- Configurações ---------- */

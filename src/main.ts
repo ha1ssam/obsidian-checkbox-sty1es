@@ -2,6 +2,7 @@ import { MarkdownView, Menu, Plugin } from "obsidian";
 import {
 	CHECKBOX_STYLES,
 	DEFAULT_STYLE_ID,
+	STYLE_GROUPS,
 	defaultStyleClass,
 	getCheckboxStyle,
 } from "./checkbox-styles";
@@ -14,20 +15,30 @@ import {
 	trackRenderedCheckboxes,
 } from "./task-target";
 
+export type MouseButton = "left" | "right";
+
 interface CheckboxStylesSettings {
-	/** Estilo de tarefas desmarcadas, `[x]` e caracteres desconhecidos. */
+	/**
+	 * Estilo de tarefas desmarcadas, `[x]` e caracteres desconhecidos; é o
+	 * estilo que o botão de marcar/desmarcar aplica.
+	 */
 	defaultStyle: string;
-	/** Abrir o menu de estilos ao clicar numa tarefa desmarcada. */
-	menuOnCheck: boolean;
-	/** O que o clique faz numa tarefa já marcada. */
-	clickOnChecked: "uncheck" | "menu";
+	/** Botão do mouse que abre o menu; o outro marca e desmarca a tarefa. */
+	menuButton: MouseButton;
+}
+
+/** Formato das configurações até a versão 1.0.1. */
+interface LegacySettings {
+	menuOnCheck?: boolean;
 }
 
 const DEFAULT_SETTINGS: CheckboxStylesSettings = {
 	defaultStyle: DEFAULT_STYLE_ID,
-	menuOnCheck: true,
-	clickOnChecked: "uncheck",
+	menuButton: "left",
 };
+
+/** Caractere padrão de tarefa concluída; aparece com o estilo padrão. */
+const CHECKED_CHAR = "x";
 
 export default class CheckboxStylesPlugin extends Plugin {
 	settings: CheckboxStylesSettings = { ...DEFAULT_SETTINGS };
@@ -68,12 +79,20 @@ export default class CheckboxStylesPlugin extends Plugin {
 	}
 
 	private async loadSettings(): Promise<void> {
-		const saved = (await this.loadData()) as Partial<CheckboxStylesSettings> | null;
-		this.settings = { ...DEFAULT_SETTINGS, ...saved };
-		this.settings.defaultStyle = getCheckboxStyle(this.settings.defaultStyle).id;
-		if (this.settings.clickOnChecked !== "menu") {
-			this.settings.clickOnChecked = "uncheck";
+		const saved = (await this.loadData()) as
+			| (Partial<CheckboxStylesSettings> & LegacySettings)
+			| null;
+		let menuButton: MouseButton = DEFAULT_SETTINGS.menuButton;
+		if (saved?.menuButton === "left" || saved?.menuButton === "right") {
+			menuButton = saved.menuButton;
+		} else if (saved?.menuOnCheck === false) {
+			// Antes: clique marcava direto e o menu ficava no botão direito.
+			menuButton = "right";
 		}
+		this.settings = {
+			defaultStyle: getCheckboxStyle(saved?.defaultStyle ?? DEFAULT_STYLE_ID).id,
+			menuButton,
+		};
 	}
 
 	private registerWindow(win: Window): void {
@@ -90,25 +109,29 @@ export default class CheckboxStylesPlugin extends Plugin {
 		const task = resolveTaskTarget(this.app, input);
 		if (!task) return;
 
-		const wantsMenu =
-			evt.type === "contextmenu" ||
-			(isUnchecked(task.char)
-				? this.settings.menuOnCheck
-				: this.settings.clickOnChecked === "menu");
-		// Sem menu, marcar/desmarcar continua sendo o comportamento nativo.
-		if (!wantsMenu) return;
-
-		evt.preventDefault();
-		evt.stopImmediatePropagation();
-		this.showStyleMenu(evt, task);
+		const button: MouseButton = evt.type === "contextmenu" ? "right" : "left";
+		if (button === this.settings.menuButton) {
+			evt.preventDefault();
+			evt.stopImmediatePropagation();
+			this.showStyleMenu(evt, task);
+			return;
+		}
+		// O outro botão marca/desmarca. No esquerdo isso já é o comportamento
+		// nativo do Obsidian; no direito, fazemos o mesmo no lugar do menu.
+		if (button === "right") {
+			evt.preventDefault();
+			evt.stopImmediatePropagation();
+			task.setChar(isUnchecked(task.char) ? CHECKED_CHAR : UNCHECKED_CHAR);
+		}
 	}
 
 	private showStyleMenu(evt: MouseEvent, task: TaskTarget): void {
-		const menu = new Menu();
+		// O menu nativo do sistema não renderiza as checkboxes dos itens.
+		const menu = new Menu().setUseNativeMenu(false);
+		const rows: HTMLElement[] = [];
 		const addOption = (option: {
 			styleId: string;
 			name: string;
-			hint: string;
 			char: string;
 			selected: boolean;
 		}) =>
@@ -122,32 +145,34 @@ export default class CheckboxStylesPlugin extends Plugin {
 							});
 							createCheckbox(row, !isUnchecked(option.char), true);
 							row.createSpan({ cls: "cbs-preview-text", text: option.name });
-							row.createSpan({ cls: "cbs-menu-effect", text: option.hint });
+							rows.push(row);
 						})
 					)
 					.setChecked(option.selected)
 					.onClick(() => task.setChar(option.char))
 			);
 
-		for (const style of CHECKBOX_STYLES) {
-			addOption({
-				styleId: style.id,
-				name: style.name,
-				hint: style.effect,
-				char: style.char,
-				selected: task.char === style.char,
-			});
-		}
+		STYLE_GROUPS.forEach((group, index) => {
+			if (index > 0) menu.addSeparator();
+			for (const style of group) {
+				addOption({
+					styleId: style.id,
+					name: style.name,
+					char: style.char,
+					selected: task.char === style.char,
+				});
+			}
+		});
 		if (!isUnchecked(task.char)) {
 			menu.addSeparator();
 			addOption({
 				styleId: this.settings.defaultStyle,
 				name: "Unchecked",
-				hint: "Mark the task as not done",
 				char: UNCHECKED_CHAR,
 				selected: false,
 			});
 		}
+		scrollOnlyWithKeyboard(menu, rows, evt.view ?? window);
 		// Clique gerado pelo teclado (espaço) não tem posição do mouse.
 		if (evt.detail === 0 && evt.target instanceof Element) {
 			const rect = evt.target.getBoundingClientRect();
@@ -155,6 +180,11 @@ export default class CheckboxStylesPlugin extends Plugin {
 		} else {
 			menu.showAtMouseEvent(evt);
 		}
+		// Ao abrir, o Obsidian liga na área de rolagem um "mousemove" que move
+		// a lista conforme a posição do mouse; barra esse evento antes dele.
+		rows[0]
+			?.closest(".menu-scroll")
+			?.addEventListener("mousemove", (e) => e.stopImmediatePropagation(), true);
 	}
 
 	private applyDefaultStyle(id: string | null): void {
@@ -165,6 +195,36 @@ export default class CheckboxStylesPlugin extends Plugin {
 		for (const body of bodies) {
 			setDefaultStyleClass(body, id);
 		}
+	}
+}
+
+/**
+ * O menu do Obsidian rola o item para a vista sempre que ele é selecionado,
+ * inclusive ao passar o mouse; numa lista com rolagem isso faz o menu andar
+ * sozinho. Mantém esse comportamento só para a navegação pelo teclado.
+ */
+function scrollOnlyWithKeyboard(menu: Menu, rows: HTMLElement[], win: Window): void {
+	let usingKeyboard = false;
+	const onKeyDown = () => {
+		usingKeyboard = true;
+	};
+	const onPointerMove = () => {
+		usingKeyboard = false;
+	};
+	win.addEventListener("keydown", onKeyDown, true);
+	win.addEventListener("pointermove", onPointerMove, true);
+	menu.onHide(() => {
+		win.removeEventListener("keydown", onKeyDown, true);
+		win.removeEventListener("pointermove", onPointerMove, true);
+	});
+
+	for (const row of rows) {
+		const item = row.closest<HTMLElement>(".menu-item");
+		if (!item) continue;
+		const scrollIntoView = item.scrollIntoView.bind(item);
+		item.scrollIntoView = (arg?: boolean | ScrollIntoViewOptions) => {
+			if (usingKeyboard) scrollIntoView(arg);
+		};
 	}
 }
 
