@@ -120,18 +120,15 @@ input[type="checkbox"].cbs-checkbox {
 }
 
 /* Lista longa: altura limitada, com rolagem. */
-.menu:has(.cbs-menu-item) {
+.menu.cbs-menu {
 	display: flex;
 	flex-direction: column;
 	max-height: min(360px, 60vh);
-}
-
-.menu:has(.cbs-menu-item) > .menu-scroll {
-	min-height: 0;
 	overflow-y: auto;
 }
 
-.menu:has(.cbs-menu-item):not(:has(> .menu-scroll)) {
+.menu.cbs-menu > .menu-scroll {
+	min-height: 0;
 	overflow-y: auto;
 }
 

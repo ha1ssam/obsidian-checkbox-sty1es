@@ -1,6 +1,6 @@
 {
 	"name": "checkbox-sty1es",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"description": "Per-task checkbox styles for Obsidian.",
 	"main": "main.js",
 	"type": "module",

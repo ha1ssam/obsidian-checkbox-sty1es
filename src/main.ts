@@ -173,6 +173,9 @@ export default class CheckboxStylesPlugin extends Plugin {
 			});
 		}
 		scrollOnlyWithKeyboard(menu, rows, evt.view ?? window);
+		// A classe precisa existir antes de abrir: o Obsidian posiciona o menu
+		// pela altura dele, e é ela que limita a altura (ver styles.base.css).
+		(menu as unknown as { dom?: HTMLElement }).dom?.addClass("cbs-menu");
 		// Clique gerado pelo teclado (espaço) não tem posição do mouse.
 		if (evt.detail === 0 && evt.target instanceof Element) {
 			const rect = evt.target.getBoundingClientRect();
