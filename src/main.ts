@@ -1,4 +1,4 @@
-import { MarkdownView, Menu, Plugin } from "obsidian";
+import { KeymapEventHandler, MarkdownView, Menu, Plugin } from "obsidian";
 import {
 	CHECKBOX_STYLES,
 	DEFAULT_STYLE_ID,
@@ -6,6 +6,7 @@ import {
 	defaultStyleClass,
 	getCheckboxStyle,
 } from "./checkbox-styles";
+import { StoredHotkey, parseHotkey } from "./hotkey";
 import { CheckboxStyleSettingTab, createCheckbox } from "./settings";
 import {
 	TaskTarget,
@@ -14,6 +15,7 @@ import {
 	resolveTaskTarget,
 	trackRenderedCheckboxes,
 } from "./task-target";
+import { UncheckAll } from "./uncheck-all";
 
 export type MouseButton = "left" | "right";
 
@@ -25,6 +27,10 @@ interface CheckboxStylesSettings {
 	defaultStyle: string;
 	/** Botão do mouse que abre o menu; o outro marca e desmarca a tarefa. */
 	menuButton: MouseButton;
+	/** Mostrar no topo de cada nota o botão que desmarca todas as tarefas. */
+	uncheckAllButton: boolean;
+	/** Atalho de teclado que desmarca todas as tarefas da nota ativa. */
+	uncheckAllHotkey: StoredHotkey | null;
 }
 
 /** Formato das configurações até a versão 1.0.1. */
@@ -35,13 +41,17 @@ interface LegacySettings {
 const DEFAULT_SETTINGS: CheckboxStylesSettings = {
 	defaultStyle: DEFAULT_STYLE_ID,
 	menuButton: "left",
+	uncheckAllButton: false,
+	uncheckAllHotkey: null,
 };
-
-/** Caractere padrão de tarefa concluída; aparece com o estilo padrão. */
-const CHECKED_CHAR = "x";
 
 export default class CheckboxStylesPlugin extends Plugin {
 	settings: CheckboxStylesSettings = { ...DEFAULT_SETTINGS };
+	private uncheckAll = new UncheckAll(this.app);
+	private uncheckButtons = new Map<MarkdownView, HTMLElement>();
+	private uncheckHotkey: KeymapEventHandler | null = null;
+	/** Verdadeiro enquanto repassamos um clique sintético ao Obsidian. */
+	private passingClick = false;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -49,17 +59,25 @@ export default class CheckboxStylesPlugin extends Plugin {
 		this.registerMarkdownPostProcessor(trackRenderedCheckboxes);
 
 		this.applyDefaultStyle(this.settings.defaultStyle);
+		this.syncUncheckHotkey();
 		this.registerWindow(window);
 		this.app.workspace.onLayoutReady(() => {
 			// Janelas destacadas (pop-out) têm o seu próprio document.
 			this.applyDefaultStyle(this.settings.defaultStyle);
+			this.syncUncheckButtons();
 			// Notas já abertas em modo leitura precisam passar pelo post processor.
 			this.app.workspace.iterateAllLeaves((leaf) => {
-				if (leaf.view instanceof MarkdownView) {
+				if (leaf.view instanceof MarkdownView && leaf.view.getMode() === "preview") {
 					leaf.view.previewMode.rerender(true);
 				}
 			});
 		});
+		this.registerEvent(
+			this.app.workspace.on("layout-change", () => this.syncUncheckButtons())
+		);
+		this.registerEvent(
+			this.app.workspace.on("active-leaf-change", () => this.syncUncheckButtons())
+		);
 		this.registerEvent(
 			this.app.workspace.on("window-open", (win) => {
 				setDefaultStyleClass(win.doc.body, this.settings.defaultStyle);
@@ -70,11 +88,18 @@ export default class CheckboxStylesPlugin extends Plugin {
 
 	onunload(): void {
 		this.applyDefaultStyle(null);
+		for (const button of this.uncheckButtons.values()) {
+			button.remove();
+		}
+		this.uncheckButtons.clear();
+		if (this.uncheckHotkey) this.app.scope.unregister(this.uncheckHotkey);
 	}
 
 	async updateSettings(changes: Partial<CheckboxStylesSettings>): Promise<void> {
 		Object.assign(this.settings, changes);
 		this.applyDefaultStyle(this.settings.defaultStyle);
+		this.syncUncheckButtons();
+		this.syncUncheckHotkey();
 		await this.saveData(this.settings);
 	}
 
@@ -92,7 +117,51 @@ export default class CheckboxStylesPlugin extends Plugin {
 		this.settings = {
 			defaultStyle: getCheckboxStyle(saved?.defaultStyle ?? DEFAULT_STYLE_ID).id,
 			menuButton,
+			uncheckAllButton: saved?.uncheckAllButton === true,
+			uncheckAllHotkey: parseHotkey(saved?.uncheckAllHotkey),
 		};
+	}
+
+	/** Registra no Obsidian o atalho escolhido nas configurações do plugin. */
+	private syncUncheckHotkey(): void {
+		if (this.uncheckHotkey) {
+			this.app.scope.unregister(this.uncheckHotkey);
+			this.uncheckHotkey = null;
+		}
+		const hotkey = this.settings.uncheckAllHotkey;
+		if (!hotkey) return;
+		this.uncheckHotkey = this.app.scope.register(hotkey.modifiers, hotkey.key, () => {
+			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+			// Sem nota ativa, a tecla segue o caminho normal.
+			if (!view) return;
+			void this.uncheckAll.run(view);
+			return false;
+		});
+	}
+
+	/** Põe ou tira o botão "desmarcar tudo" do topo de cada nota aberta. */
+	private syncUncheckButtons(): void {
+		const open = new Set<MarkdownView>();
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view instanceof MarkdownView) open.add(leaf.view);
+		});
+		const show = this.settings.uncheckAllButton;
+		for (const [view, button] of this.uncheckButtons) {
+			if (!show || !open.has(view)) {
+				button.remove();
+				this.uncheckButtons.delete(view);
+			}
+		}
+		if (!show) return;
+		for (const view of open) {
+			if (this.uncheckButtons.has(view)) continue;
+			this.uncheckButtons.set(
+				view,
+				view.addAction("list-x", "Uncheck all tasks", () => {
+					void this.uncheckAll.run(view);
+				})
+			);
+		}
 	}
 
 	private registerWindow(win: Window): void {
@@ -103,6 +172,7 @@ export default class CheckboxStylesPlugin extends Plugin {
 	}
 
 	private onCheckboxEvent(evt: MouseEvent): void {
+		if (this.passingClick) return;
 		const input = evt.target as HTMLElement | null;
 		if (!input?.matches?.("input.task-list-item-checkbox")) return;
 
@@ -113,19 +183,26 @@ export default class CheckboxStylesPlugin extends Plugin {
 		if (button === this.settings.menuButton) {
 			evt.preventDefault();
 			evt.stopImmediatePropagation();
-			this.showStyleMenu(evt, task);
+			this.showStyleMenu(evt, input, task);
 			return;
 		}
 		// O outro botão marca/desmarca. No esquerdo isso já é o comportamento
-		// nativo do Obsidian; no direito, fazemos o mesmo no lugar do menu.
+		// nativo; no direito, repassamos um clique comum no lugar do menu de
+		// contexto, para que o Obsidian e outros plugins (Tasks, por exemplo)
+		// tratem a tarefa exatamente como num clique normal.
 		if (button === "right") {
 			evt.preventDefault();
 			evt.stopImmediatePropagation();
-			task.setChar(isUnchecked(task.char) ? CHECKED_CHAR : UNCHECKED_CHAR);
+			this.passingClick = true;
+			try {
+				input.click();
+			} finally {
+				this.passingClick = false;
+			}
 		}
 	}
 
-	private showStyleMenu(evt: MouseEvent, task: TaskTarget): void {
+	private showStyleMenu(evt: MouseEvent, input: HTMLElement, task: TaskTarget): void {
 		// O menu nativo do sistema não renderiza as checkboxes dos itens.
 		const menu = new Menu().setUseNativeMenu(false);
 		const rows: HTMLElement[] = [];
@@ -177,9 +254,9 @@ export default class CheckboxStylesPlugin extends Plugin {
 		// pela altura dele, e é ela que limita a altura (ver styles.base.css).
 		(menu as unknown as { dom?: HTMLElement }).dom?.addClass("cbs-menu");
 		// Clique gerado pelo teclado (espaço) não tem posição do mouse.
-		if (evt.detail === 0 && evt.target instanceof Element) {
-			const rect = evt.target.getBoundingClientRect();
-			menu.showAtPosition({ x: rect.left, y: rect.bottom }, evt.target.ownerDocument);
+		if (evt.type === "click" && evt.detail === 0) {
+			const rect = input.getBoundingClientRect();
+			menu.showAtPosition({ x: rect.left, y: rect.bottom }, input.ownerDocument);
 		} else {
 			menu.showAtMouseEvent(evt);
 		}

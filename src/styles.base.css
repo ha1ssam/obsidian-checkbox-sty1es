@@ -91,8 +91,8 @@
 	font-style: var(--cbs-text-style);
 }
 
-/* Subtarefas desmarcadas não herdam o efeito da tarefa-mãe. */
-:is(.markdown-rendered, .markdown-preview-view) li.task-list-item:is(:not([data-task]), [data-task=""], [data-task=" "]) {
+/* Subtarefas desmarcadas não herdam o efeito da tarefa-mãe marcada. */
+:is(.markdown-rendered, .markdown-preview-view) li.task-list-item[data-task]:not([data-task=""]):not([data-task=" "]) li.task-list-item:is(:not([data-task]), [data-task=""], [data-task=" "]) {
 	text-shadow: none;
 	font-weight: var(--font-normal, 400);
 	font-style: normal;

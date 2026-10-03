@@ -24,7 +24,7 @@ interface EditorViewLike {
 }
 
 // prefixo (citação/lista) + "[" | caractere | "]"
-const TASK_LINE = /^(\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[)(.)(\])/;
+export const TASK_LINE = /^(\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[)(.)(\])/;
 
 export const UNCHECKED_CHAR = " ";
 

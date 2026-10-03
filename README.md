@@ -52,9 +52,15 @@ Icon styles replace the checkbox with a colored icon. Most leave the text as it 
 - Checking a task with the other button writes a plain `[x]`, shown in the default style chosen in the settings. Unchecked tasks use that style too.
 - Colors come from the current theme's variables, so the styles follow light and dark themes.
 
+## Uncheck all tasks
+
+The uncheck-all action unchecks every task in the open note. Use it again right away and the tasks go back to how they were; once you change anything in the note, the saved state is dropped so nothing you edited is overwritten. It is off by default: in the settings you can turn on a button for it at the top of each note, record a keyboard shortcut for it, or both.
+
 ## Settings
 
 - **Menu button** — left click or right click opens the style menu; the other button checks and unchecks the task.
+- **Uncheck-all button** — show the uncheck-all button at the top of each note.
+- **Uncheck-all hotkey** — record a keyboard shortcut for unchecking all tasks in the current note.
 - **Default style** — the style applied when you check a task with the other button, and the look of unchecked and `[x]` tasks.
 
 ## Limitations

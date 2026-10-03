@@ -1,15 +1,32 @@
-import { App, PluginSettingTab, Setting, SettingDefinitionItem } from "obsidian";
+import {
+	App,
+	ButtonComponent,
+	PluginSettingTab,
+	Setting,
+	SettingDefinitionItem,
+} from "obsidian";
 import {
 	CHECKBOX_STYLES,
 	CheckboxStyle,
 	getCheckboxStyle,
 } from "./checkbox-styles";
+import { describeHotkey, recordHotkey } from "./hotkey";
 import type CheckboxStylesPlugin from "./main";
 
 const MENU_BUTTON = {
 	name: "Menu button",
 	desc: "The mouse button that opens the style menu on a checkbox. The other button checks and unchecks the task.",
 	options: { left: "Left click", right: "Right click" },
+};
+
+const UNCHECK_ALL_BUTTON = {
+	name: "Uncheck-all button",
+	desc: "Show a button at the top of each note that unchecks every task in it. Use it again right away to restore them; once the note changes, there is nothing to restore.",
+};
+
+const UNCHECK_ALL_HOTKEY = {
+	name: "Uncheck-all hotkey",
+	desc: "A keyboard shortcut that does the same as the uncheck-all button, in the note you are on. Click the button, then press the combination. Escape cancels.",
 };
 
 const DEFAULT_STYLE = {
@@ -19,6 +36,8 @@ const DEFAULT_STYLE = {
 
 export class CheckboxStyleSettingTab extends PluginSettingTab {
 	private plugin: CheckboxStylesPlugin;
+	/** Encerra a gravação de atalho em andamento, se houver. */
+	private stopRecording: (() => void) | null = null;
 
 	constructor(app: App, plugin: CheckboxStylesPlugin) {
 		super(app, plugin);
@@ -37,6 +56,14 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 				},
 			},
 			{
+				...UNCHECK_ALL_BUTTON,
+				control: { type: "toggle", key: "uncheckAllButton" },
+			},
+			{
+				...UNCHECK_ALL_HOTKEY,
+				render: (setting) => this.renderHotkeySetting(setting),
+			},
+			{
 				...DEFAULT_STYLE,
 				aliases: CHECKBOX_STYLES.map((style) => style.name),
 				render: (setting) => this.renderStyleSetting(setting),
@@ -46,6 +73,7 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 
 	getControlValue(key: string): unknown {
 		if (key === "menuButton") return this.plugin.settings.menuButton;
+		if (key === "uncheckAllButton") return this.plugin.settings.uncheckAllButton;
 		return undefined;
 	}
 
@@ -54,6 +82,9 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 			return this.plugin.updateSettings({
 				menuButton: value === "right" ? "right" : "left",
 			});
+		}
+		if (key === "uncheckAllButton") {
+			return this.plugin.updateSettings({ uncheckAllButton: value === true });
 		}
 		return Promise.resolve();
 	}
@@ -72,7 +103,64 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.menuButton)
 					.onChange((value) => this.setControlValue("menuButton", value))
 			);
+		new Setting(containerEl)
+			.setName(UNCHECK_ALL_BUTTON.name)
+			.setDesc(UNCHECK_ALL_BUTTON.desc)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.uncheckAllButton)
+					.onChange((value) => this.setControlValue("uncheckAllButton", value))
+			);
+		this.renderHotkeySetting(new Setting(containerEl));
 		this.renderStyleSetting(new Setting(containerEl));
+	}
+
+	hide(): void {
+		this.stopRecording?.();
+		this.stopRecording = null;
+		super.hide();
+	}
+
+	/** Linha "Uncheck-all hotkey": botão que grava a combinação + limpar. */
+	private renderHotkeySetting(setting: Setting): void {
+		setting.setName(UNCHECK_ALL_HOTKEY.name).setDesc(UNCHECK_ALL_HOTKEY.desc);
+
+		let recordButton: ButtonComponent | null = null;
+		const showCurrent = () => {
+			recordButton
+				?.setButtonText(describeHotkey(this.plugin.settings.uncheckAllHotkey))
+				.removeCta();
+		};
+		setting.addButton((button) => {
+			recordButton = button;
+			button.onClick(() => {
+				this.stopRecording?.();
+				button.setButtonText("Press a combination…").setCta();
+				this.stopRecording = recordHotkey(this.app, (hotkey) => {
+					this.stopRecording = null;
+					if (!hotkey) {
+						showCurrent();
+						return;
+					}
+					void this.plugin
+						.updateSettings({ uncheckAllHotkey: hotkey })
+						.then(showCurrent);
+				});
+			});
+		});
+		setting.addExtraButton((button) =>
+			button
+				.setIcon("x")
+				.setTooltip("Remove hotkey")
+				.onClick(() => {
+					this.stopRecording?.();
+					this.stopRecording = null;
+					void this.plugin
+						.updateSettings({ uncheckAllHotkey: null })
+						.then(showCurrent);
+				})
+		);
+		showCurrent();
 	}
 
 	/** Linha "Default style": galeria de cartões + prévia. */
