@@ -1,4 +1,4 @@
-import { KeymapEventHandler, MarkdownView, Menu, Plugin } from "obsidian";
+import { KeymapEventHandler, MarkdownView, Menu, Platform, Plugin } from "obsidian";
 import {
 	CHECKBOX_STYLES,
 	DEFAULT_STYLE_ID,
@@ -18,6 +18,12 @@ import {
 import { UncheckAll } from "./uncheck-all";
 
 export type MouseButton = "left" | "right";
+export type TouchGesture = "tap" | "hold";
+
+/** Tempo segurando o dedo na checkbox para contar como "segurar". */
+const HOLD_MS = 450;
+/** Movimento máximo do dedo (px) para ainda contar como toque parado. */
+const HOLD_SLOP = 10;
 
 interface CheckboxStylesSettings {
 	/**
@@ -27,6 +33,8 @@ interface CheckboxStylesSettings {
 	defaultStyle: string;
 	/** Botão do mouse que abre o menu; o outro marca e desmarca a tarefa. */
 	menuButton: MouseButton;
+	/** No celular/tablet: gesto que abre o menu; o outro marca e desmarca. */
+	mobileMenuGesture: TouchGesture;
 	/** Mostrar no topo de cada nota o botão que desmarca todas as tarefas. */
 	uncheckAllButton: boolean;
 	/** Atalho de teclado que desmarca todas as tarefas da nota ativa. */
@@ -41,6 +49,7 @@ interface LegacySettings {
 const DEFAULT_SETTINGS: CheckboxStylesSettings = {
 	defaultStyle: DEFAULT_STYLE_ID,
 	menuButton: "left",
+	mobileMenuGesture: "tap",
 	uncheckAllButton: false,
 	uncheckAllHotkey: null,
 };
@@ -52,6 +61,8 @@ export default class CheckboxStylesPlugin extends Plugin {
 	private uncheckHotkey: KeymapEventHandler | null = null;
 	/** Verdadeiro enquanto repassamos um clique sintético ao Obsidian. */
 	private passingClick = false;
+	/** Depois de um "segurar", o clique que o navegador gera ao soltar é ignorado. */
+	private ignoreClickOn: { input: HTMLElement; until: number } | null = null;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -117,6 +128,7 @@ export default class CheckboxStylesPlugin extends Plugin {
 		this.settings = {
 			defaultStyle: getCheckboxStyle(saved?.defaultStyle ?? DEFAULT_STYLE_ID).id,
 			menuButton,
+			mobileMenuGesture: saved?.mobileMenuGesture === "hold" ? "hold" : "tap",
 			uncheckAllButton: saved?.uncheckAllButton === true,
 			uncheckAllHotkey: parseHotkey(saved?.uncheckAllHotkey),
 		};
@@ -169,6 +181,12 @@ export default class CheckboxStylesPlugin extends Plugin {
 		const handler = (evt: MouseEvent) => this.onCheckboxEvent(evt);
 		this.registerDomEvent(win, "click", handler, { capture: true });
 		this.registerDomEvent(win, "contextmenu", handler, { capture: true });
+		if (Platform.isMobile) {
+			this.registerDomEvent(win, "touchstart", (evt) => this.onTouchStart(evt), {
+				capture: true,
+				passive: true,
+			});
+		}
 	}
 
 	private onCheckboxEvent(evt: MouseEvent): void {
@@ -176,14 +194,39 @@ export default class CheckboxStylesPlugin extends Plugin {
 		const input = evt.target as HTMLElement | null;
 		if (!input?.matches?.("input.task-list-item-checkbox")) return;
 
+		const ignore = this.ignoreClickOn;
+		if (evt.type === "click" && ignore?.input === input && Date.now() < ignore.until) {
+			this.ignoreClickOn = null;
+			evt.preventDefault();
+			evt.stopImmediatePropagation();
+			return;
+		}
+
 		const task = resolveTaskTarget(this.app, input);
 		if (!task) return;
+
+		if (Platform.isMobile) {
+			// No toque, o "segurar" é tratado em onTouchStart; o menu de
+			// contexto que o Android gera ao segurar é descartado.
+			if (evt.type === "contextmenu") {
+				evt.preventDefault();
+				evt.stopImmediatePropagation();
+				return;
+			}
+			if (this.settings.mobileMenuGesture === "tap") {
+				evt.preventDefault();
+				evt.stopImmediatePropagation();
+				this.showStyleMenu(input, task, this.menuPosition(evt, input));
+			}
+			// Com "segurar para o menu", o toque segue nativo: marca/desmarca.
+			return;
+		}
 
 		const button: MouseButton = evt.type === "contextmenu" ? "right" : "left";
 		if (button === this.settings.menuButton) {
 			evt.preventDefault();
 			evt.stopImmediatePropagation();
-			this.showStyleMenu(evt, input, task);
+			this.showStyleMenu(input, task, this.menuPosition(evt, input));
 			return;
 		}
 		// O outro botão marca/desmarca. No esquerdo isso já é o comportamento
@@ -193,16 +236,92 @@ export default class CheckboxStylesPlugin extends Plugin {
 		if (button === "right") {
 			evt.preventDefault();
 			evt.stopImmediatePropagation();
-			this.passingClick = true;
-			try {
-				input.click();
-			} finally {
-				this.passingClick = false;
-			}
+			this.clickNatively(input);
 		}
 	}
 
-	private showStyleMenu(evt: MouseEvent, input: HTMLElement, task: TaskTarget): void {
+	/**
+	 * "Segurar" a checkbox no celular. O Obsidian não gera menu de contexto ao
+	 * segurar (e o iOS não gera nada), então o gesto é detectado aqui.
+	 */
+	private onTouchStart(evt: TouchEvent): void {
+		const input = evt.target as HTMLElement | null;
+		if (evt.touches.length !== 1 || !input?.matches?.("input.task-list-item-checkbox")) {
+			return;
+		}
+		const win = input.ownerDocument.defaultView ?? window;
+		const start = evt.touches[0];
+		let held = false;
+
+		const cleanup = () => {
+			win.clearTimeout(timer);
+			win.removeEventListener("touchmove", onMove, true);
+			win.removeEventListener("touchend", onEnd, true);
+			win.removeEventListener("touchcancel", onEnd, true);
+		};
+		const onMove = (e: TouchEvent) => {
+			const touch = e.touches[0];
+			if (
+				!touch ||
+				Math.abs(touch.clientX - start.clientX) > HOLD_SLOP ||
+				Math.abs(touch.clientY - start.clientY) > HOLD_SLOP
+			) {
+				cleanup();
+			}
+		};
+		const onEnd = (e: TouchEvent) => {
+			cleanup();
+			// Impede o clique que o navegador geraria ao soltar o dedo.
+			if (held && e.cancelable) e.preventDefault();
+		};
+		const timer = win.setTimeout(() => {
+			const task = resolveTaskTarget(this.app, input);
+			if (!task) {
+				cleanup();
+				return;
+			}
+			held = true;
+			this.ignoreClickOn = { input, until: Date.now() + 1000 };
+			navigator.vibrate?.(30);
+			if (this.settings.mobileMenuGesture === "hold") {
+				this.showStyleMenu(input, task, { x: start.clientX, y: start.clientY });
+			} else {
+				this.clickNatively(input);
+			}
+		}, HOLD_MS);
+
+		win.addEventListener("touchmove", onMove, true);
+		win.addEventListener("touchend", onEnd, { capture: true, passive: false });
+		win.addEventListener("touchcancel", onEnd, true);
+	}
+
+	/**
+	 * Marca/desmarca como num clique comum, para que o Obsidian e outros
+	 * plugins (Tasks, por exemplo) tratem a tarefa do jeito deles.
+	 */
+	private clickNatively(input: HTMLElement): void {
+		this.passingClick = true;
+		try {
+			input.click();
+		} finally {
+			this.passingClick = false;
+		}
+	}
+
+	/** Onde abrir o menu: no ponteiro, ou abaixo da checkbox se veio do teclado. */
+	private menuPosition(evt: MouseEvent, input: HTMLElement): { x: number; y: number } {
+		if (evt.type === "click" && evt.detail === 0) {
+			const rect = input.getBoundingClientRect();
+			return { x: rect.left, y: rect.bottom };
+		}
+		return { x: evt.clientX, y: evt.clientY };
+	}
+
+	private showStyleMenu(
+		input: HTMLElement,
+		task: TaskTarget,
+		position: { x: number; y: number }
+	): void {
 		// O menu nativo do sistema não renderiza as checkboxes dos itens.
 		const menu = new Menu().setUseNativeMenu(false);
 		const rows: HTMLElement[] = [];
@@ -249,17 +368,11 @@ export default class CheckboxStylesPlugin extends Plugin {
 				selected: false,
 			});
 		}
-		scrollOnlyWithKeyboard(menu, rows, evt.view ?? window);
+		scrollOnlyWithKeyboard(menu, rows, input.ownerDocument.defaultView ?? window);
 		// A classe precisa existir antes de abrir: o Obsidian posiciona o menu
 		// pela altura dele, e é ela que limita a altura (ver styles.base.css).
 		(menu as unknown as { dom?: HTMLElement }).dom?.addClass("cbs-menu");
-		// Clique gerado pelo teclado (espaço) não tem posição do mouse.
-		if (evt.type === "click" && evt.detail === 0) {
-			const rect = input.getBoundingClientRect();
-			menu.showAtPosition({ x: rect.left, y: rect.bottom }, input.ownerDocument);
-		} else {
-			menu.showAtMouseEvent(evt);
-		}
+		menu.showAtPosition(position, input.ownerDocument);
 		// Ao abrir, o Obsidian liga na área de rolagem um "mousemove" que move
 		// a lista conforme a posição do mouse; barra esse evento antes dele.
 		rows[0]

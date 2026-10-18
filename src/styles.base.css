@@ -79,6 +79,13 @@
 	background-color: var(--cbs-mark-color-hover);
 }
 
+/* No celular, segurar a checkbox não deve selecionar texto nem abrir o balão do sistema. */
+.is-mobile input[type="checkbox"].task-list-item-checkbox {
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
 /* ---------- Efeito no texto da tarefa marcada ---------- */
 
 .markdown-source-view.mod-cm6 .cm-line.HyperMD-task-line[data-task]:not([data-task=" "]),

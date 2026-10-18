@@ -1,6 +1,7 @@
 import {
 	App,
 	ButtonComponent,
+	Platform,
 	PluginSettingTab,
 	Setting,
 	SettingDefinitionItem,
@@ -15,8 +16,14 @@ import type CheckboxStylesPlugin from "./main";
 
 const MENU_BUTTON = {
 	name: "Menu button",
-	desc: "The mouse button that opens the style menu on a checkbox. The other button checks and unchecks the task.",
+	desc: "On a computer: the mouse button that opens the style menu on a checkbox. The other button checks and unchecks the task.",
 	options: { left: "Left click", right: "Right click" },
+};
+
+const MOBILE_GESTURE = {
+	name: "Menu on mobile",
+	desc: "On a phone or tablet: the gesture that opens the style menu on a checkbox. The other one checks and unchecks the task.",
+	options: { tap: "Tap", hold: "Tap and hold" },
 };
 
 const UNCHECK_ALL_BUTTON = {
@@ -49,10 +56,21 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 			{
 				name: MENU_BUTTON.name,
 				desc: MENU_BUTTON.desc,
+				visible: !Platform.isMobile,
 				control: {
 					type: "dropdown",
 					key: "menuButton",
 					options: MENU_BUTTON.options,
+				},
+			},
+			{
+				name: MOBILE_GESTURE.name,
+				desc: MOBILE_GESTURE.desc,
+				visible: Platform.isMobile,
+				control: {
+					type: "dropdown",
+					key: "mobileMenuGesture",
+					options: MOBILE_GESTURE.options,
 				},
 			},
 			{
@@ -73,6 +91,7 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 
 	getControlValue(key: string): unknown {
 		if (key === "menuButton") return this.plugin.settings.menuButton;
+		if (key === "mobileMenuGesture") return this.plugin.settings.mobileMenuGesture;
 		if (key === "uncheckAllButton") return this.plugin.settings.uncheckAllButton;
 		return undefined;
 	}
@@ -81,6 +100,11 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 		if (key === "menuButton") {
 			return this.plugin.updateSettings({
 				menuButton: value === "right" ? "right" : "left",
+			});
+		}
+		if (key === "mobileMenuGesture") {
+			return this.plugin.updateSettings({
+				mobileMenuGesture: value === "hold" ? "hold" : "tap",
 			});
 		}
 		if (key === "uncheckAllButton") {
@@ -94,15 +118,28 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		new Setting(containerEl)
-			.setName(MENU_BUTTON.name)
-			.setDesc(MENU_BUTTON.desc)
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOptions(MENU_BUTTON.options)
-					.setValue(this.plugin.settings.menuButton)
-					.onChange((value) => this.setControlValue("menuButton", value))
-			);
+		// Cada aparelho mostra só a opção que vale para ele.
+		if (Platform.isMobile) {
+			new Setting(containerEl)
+				.setName(MOBILE_GESTURE.name)
+				.setDesc(MOBILE_GESTURE.desc)
+				.addDropdown((dropdown) =>
+					dropdown
+						.addOptions(MOBILE_GESTURE.options)
+						.setValue(this.plugin.settings.mobileMenuGesture)
+						.onChange((value) => this.setControlValue("mobileMenuGesture", value))
+				);
+		} else {
+			new Setting(containerEl)
+				.setName(MENU_BUTTON.name)
+				.setDesc(MENU_BUTTON.desc)
+				.addDropdown((dropdown) =>
+					dropdown
+						.addOptions(MENU_BUTTON.options)
+						.setValue(this.plugin.settings.menuButton)
+						.onChange((value) => this.setControlValue("menuButton", value))
+				);
+		}
 		new Setting(containerEl)
 			.setName(UNCHECK_ALL_BUTTON.name)
 			.setDesc(UNCHECK_ALL_BUTTON.desc)
