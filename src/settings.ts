@@ -168,9 +168,10 @@ export class CheckboxStyleSettingTab extends PluginSettingTab {
 
 	/** Atualiza a tela depois que a lista de seções muda (pasta de imagens). */
 	refresh(): void {
-		const tab = this as unknown as { update?: () => void };
+		// update() existe a partir do 1.13; antes disso, redesenha com display().
+		const tab = this as unknown as { update?: () => void; display: () => void };
 		if (typeof tab.update === "function") tab.update();
-		else if (this.containerEl.isShown()) this.display();
+		else if (this.containerEl.isShown()) tab.display();
 	}
 
 	getControlValue(key: string): unknown {
