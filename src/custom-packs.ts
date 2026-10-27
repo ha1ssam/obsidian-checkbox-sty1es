@@ -136,31 +136,41 @@ export function moveCustomChars(
 	return changed;
 }
 
-/** Folha de estilo gerada em tempo de execução, presente em todas as janelas. */
+/**
+ * Folha de estilo gerada em tempo de execução, presente em todas as janelas.
+ *
+ * As regras dependem das imagens do cofre, então não cabem no styles.css.
+ * Usa uma folha construída (`adoptedStyleSheets`) em vez de um elemento
+ * <style>; cada janela precisa da sua, criada no próprio contexto.
+ */
 export class DynamicStyles {
 	private css = "";
-	private elements = new Map<Document, HTMLStyleElement>();
+	private sheets = new Map<Document, CSSStyleSheet>();
 
 	attach(doc: Document): void {
-		if (this.elements.has(doc)) return;
-		const el = doc.head.createEl("style", { attr: { id: "checkbox-styles-custom" } });
-		el.textContent = this.css;
-		this.elements.set(doc, el);
+		const win = doc.defaultView as (Window & typeof globalThis) | null;
+		if (!win || this.sheets.has(doc)) return;
+		const sheet = new win.CSSStyleSheet();
+		sheet.replaceSync(this.css);
+		doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sheet];
+		this.sheets.set(doc, sheet);
 	}
 
 	set(css: string): void {
 		this.css = css;
-		for (const [doc, el] of this.elements) {
+		for (const [doc, sheet] of this.sheets) {
 			if (!doc.defaultView) {
-				this.elements.delete(doc);
+				this.sheets.delete(doc);
 				continue;
 			}
-			el.textContent = css;
+			sheet.replaceSync(css);
 		}
 	}
 
 	detachAll(): void {
-		for (const el of this.elements.values()) el.remove();
-		this.elements.clear();
+		for (const [doc, sheet] of this.sheets) {
+			doc.adoptedStyleSheets = doc.adoptedStyleSheets.filter((s) => s !== sheet);
+		}
+		this.sheets.clear();
 	}
 }
