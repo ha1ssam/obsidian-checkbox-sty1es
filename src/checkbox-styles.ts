@@ -22,6 +22,8 @@ export interface CheckboxStyleVars {
 	checkedBorderColorHover: string;
 	/** Imagem usada como máscara do marcador (ver `MARKS`). */
 	mark: string;
+	/** Imagem colorida mostrada no lugar do marcador (bandeiras, escudos). */
+	markImage: string;
 	markColor: string;
 	markColorHover: string;
 	checkedShadow: string;
@@ -48,12 +50,12 @@ export interface CheckboxStyle extends CheckboxStyleInfo {
 	vars: CheckboxStyleVars;
 }
 
-const svgMask = (body: string): string =>
+export const svgMask = (body: string): string =>
 	`url("data:image/svg+xml,${encodeURIComponent(
 		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">${body}</svg>`
 	)}")`;
 
-const stroke = (d: string, width = 1.8): string =>
+export const stroke = (d: string, width = 1.8): string =>
 	svgMask(
 		`<path d="${d}" fill="none" stroke="#000" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`
 	);
@@ -69,17 +71,17 @@ export const MARKS = {
 };
 
 /** Forma preenchida com um glifo vazado (recorte feito por máscara SVG). */
-const knockout = (shape: string, cut: string): string =>
+export const knockout = (shape: string, cut: string): string =>
 	svgMask(
 		`<mask id="m"><rect width="16" height="16" fill="#fff"/>` +
 			`<g fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${cut}</g></mask>` +
 			`<g mask="url(#m)">${shape}</g>`
 	);
 
-const badge = (cut: string): string =>
+export const badge = (cut: string): string =>
 	knockout('<circle cx="8" cy="8" r="7"/>', cut);
 
-const cutDot = (cx: number, cy: number, r = 0.95): string =>
+export const cutDot = (cx: number, cy: number, r = 0.95): string =>
 	`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#000" stroke="none"/>`;
 
 const THUMB =
@@ -148,7 +150,7 @@ export const ICONS = {
 };
 
 /** Preenchido com a cor de destaque e marcador contrastante (padrão do Obsidian). */
-const BASE: CheckboxStyleVars = {
+export const BASE: CheckboxStyleVars = {
 	radius: "var(--checkbox-radius)",
 	borderWidth: "1px",
 	borderColor: "var(--checkbox-border-color)",
@@ -160,6 +162,7 @@ const BASE: CheckboxStyleVars = {
 	checkedBorderColor: "var(--checkbox-color)",
 	checkedBorderColorHover: "var(--checkbox-color-hover)",
 	mark: MARKS.check,
+	markImage: "none",
 	markColor: "var(--checkbox-marker-color)",
 	markColorHover: "var(--checkbox-marker-color)",
 	checkedShadow: "none",
@@ -179,7 +182,7 @@ const OUTLINE: Partial<CheckboxStyleVars> = {
 	markColorHover: "var(--checkbox-color-hover)",
 };
 
-const define = (
+export const define = (
 	info: CheckboxStyleInfo,
 	...overrides: Partial<CheckboxStyleVars>[]
 ): CheckboxStyle => ({
@@ -190,7 +193,7 @@ const define = (
 	),
 });
 
-const BOX_STYLES: CheckboxStyle[] = [
+export const BOX_STYLES: CheckboxStyle[] = [
 	define(
 		{
 			id: "classic",
@@ -346,7 +349,7 @@ const BOX_STYLES: CheckboxStyle[] = [
 ];
 
 /** Estilo de ícone: a caixa some e o ícone colorido ocupa o lugar dela. */
-const icon = (mark: string, color: string): Partial<CheckboxStyleVars> => ({
+export const icon = (mark: string, color: string): Partial<CheckboxStyleVars> => ({
 	checkedBg: "transparent",
 	checkedBgHover: "transparent",
 	checkedBorderColor: "transparent",
@@ -356,9 +359,9 @@ const icon = (mark: string, color: string): Partial<CheckboxStyleVars> => ({
 	markColorHover: color,
 });
 
-const MUTED_TEXT: Partial<CheckboxStyleVars> = { textColor: "var(--text-muted)" };
-const BOLD_TEXT: Partial<CheckboxStyleVars> = { textWeight: "var(--font-bold, 700)" };
-const ITALIC_TEXT: Partial<CheckboxStyleVars> = { textStyle: "italic" };
+export const MUTED_TEXT: Partial<CheckboxStyleVars> = { textColor: "var(--text-muted)" };
+export const BOLD_TEXT: Partial<CheckboxStyleVars> = { textWeight: "var(--font-bold, 700)" };
+export const ITALIC_TEXT: Partial<CheckboxStyleVars> = { textStyle: "italic" };
 
 const iconStyle = (
 	id: string,
@@ -375,7 +378,7 @@ const iconStyle = (
 		text
 	);
 
-const ICON_STYLES: CheckboxStyle[] = [
+export const ICON_STYLES: CheckboxStyle[] = [
 	iconStyle("in-progress", "In progress", "/", ICONS.half, "var(--color-blue)"),
 	iconStyle("forwarded", "Forwarded", ">", ICONS.forward, "var(--text-muted)", "Muted text", MUTED_TEXT),
 	iconStyle("scheduled", "Scheduled", "<", ICONS.schedule, "var(--text-muted)", "Muted text", MUTED_TEXT),
@@ -397,9 +400,7 @@ const ICON_STYLES: CheckboxStyle[] = [
 	iconStyle("down", "Down", "d", ICONS.trendDown, "var(--color-red)"),
 ];
 
-/** Grupos na ordem em que aparecem no menu (separados por uma linha). */
-export const STYLE_GROUPS: CheckboxStyle[][] = [BOX_STYLES, ICON_STYLES];
-
+/** Os 29 estilos básicos, sempre disponíveis (e os únicos que podem ser o padrão). */
 export const CHECKBOX_STYLES: CheckboxStyle[] = [...BOX_STYLES, ...ICON_STYLES];
 
 export const DEFAULT_STYLE_ID = "classic";
@@ -413,38 +414,33 @@ export function getCheckboxStyle(id: string): CheckboxStyle {
 }
 
 /** Elementos de tarefa do Obsidian (modo leitura e Live Preview). */
-const TASK_SCOPE = ":is(li.task-list-item, .HyperMD-task-line)";
+export const TASK_SCOPE = ":is(li.task-list-item, .HyperMD-task-line)";
 
 const cssVarName = (key: string): string =>
 	`--cbs-${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
 
-const declarations = (vars: CheckboxStyleVars): string =>
+export const declarations = (vars: CheckboxStyleVars): string =>
 	Object.entries(vars)
 		.map(([key, value]) => `${cssVarName(key)}:${value};`)
 		.join("");
 
+/** String CSS entre aspas; fora do ASCII vira escape (`\\E000 `). */
+export const cssString = (value: string): string =>
+	`"${value.replace(/["\\\n]|[^\x20-\x7e]/g, (c) => `\\${c.charCodeAt(0).toString(16)} `)}"`;
+
+/** Regra que liga um estilo ao caractere da tarefa e ao `data-cbs-style` (menu, configurações). */
+export const styleRule = (style: CheckboxStyle): string =>
+	`${TASK_SCOPE}[data-task=${cssString(style.char)}],` +
+	`[data-cbs-style=${cssString(style.id)}]{${declarations(style.vars)}}`;
+
 /** Classe aplicada ao <body> para indicar o estilo padrão escolhido. */
 export const defaultStyleClass = (id: string): string => `cbs-default-${id}`;
 
-/**
- * Gera as definições das variáveis (executado no build, ver esbuild.config.mjs).
- * O estilo padrão vale para qualquer tarefa (desmarcada, `[x]` ou caractere
- * desconhecido); cada estilo vale para o seu caractere e para elementos com
- * `data-cbs-style` (menu e configurações).
- */
-export function buildStyleSheet(): string {
-	const rules: string[] = [];
+/** Regras do estilo padrão: valem para qualquer tarefa (desmarcada, `[x]` ou caractere desconhecido). */
+export function defaultStyleRules(): string[] {
 	// :where() mantém a especificidade abaixo das regras por caractere.
-	for (const style of CHECKBOX_STYLES) {
-		rules.push(
+	return CHECKBOX_STYLES.map(
+		(style) =>
 			`:where(body.${defaultStyleClass(style.id)}) ${TASK_SCOPE}{${declarations(style.vars)}}`
-		);
-	}
-	for (const style of CHECKBOX_STYLES) {
-		rules.push(
-			`${TASK_SCOPE}[data-task=${JSON.stringify(style.char)}],` +
-				`[data-cbs-style="${style.id}"]{${declarations(style.vars)}}`
-		);
-	}
-	return rules.join("\n");
+	);
 }

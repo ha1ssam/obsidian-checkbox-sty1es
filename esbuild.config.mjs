@@ -7,7 +7,7 @@ const production = process.argv[2] === "production";
 // styles.css = regras genéricas + variáveis geradas a partir do registro de estilos.
 async function buildStyles() {
 	const result = await esbuild.build({
-		entryPoints: ["src/checkbox-styles.ts"],
+		entryPoints: ["src/sections.ts"],
 		bundle: true,
 		format: "esm",
 		write: false,
@@ -18,7 +18,7 @@ async function buildStyles() {
 	const base = await readFile("src/styles.base.css", "utf8");
 	await writeFile(
 		"styles.css",
-		`${base}\n/* ---------- Gerado a partir de src/checkbox-styles.ts ---------- */\n\n${buildStyleSheet()}\n`
+		`${base}\n/* ---------- Gerado a partir de src/sections.ts ---------- */\n\n${buildStyleSheet()}\n`
 	);
 }
 
