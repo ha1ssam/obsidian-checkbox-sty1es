@@ -1,13 +1,28 @@
-import { KeymapEventHandler, MarkdownView, Menu, Platform, Plugin } from "obsidian";
+import {
+	KeymapEventHandler,
+	MarkdownView,
+	Platform,
+	Plugin,
+	TAbstractFile,
+	debounce,
+	normalizePath,
+} from "obsidian";
 import {
 	CHECKBOX_STYLES,
 	DEFAULT_STYLE_ID,
-	STYLE_GROUPS,
 	defaultStyleClass,
 	getCheckboxStyle,
 } from "./checkbox-styles";
+import {
+	CUSTOM_PREFIX,
+	DynamicStyles,
+	moveCustomChars,
+	scanCustomFolder,
+} from "./custom-packs";
 import { StoredHotkey, parseHotkey } from "./hotkey";
-import { CheckboxStyleSettingTab, createCheckbox } from "./settings";
+import { BASIC_SECTION, PACKS, StyleSection } from "./sections";
+import { CheckboxStyleSettingTab } from "./settings";
+import { openStylePicker } from "./style-picker";
 import {
 	TaskTarget,
 	UNCHECKED_CHAR,
@@ -39,6 +54,12 @@ interface CheckboxStylesSettings {
 	uncheckAllButton: boolean;
 	/** Atalho de teclado que desmarca todas as tarefas da nota ativa. */
 	uncheckAllHotkey: StoredHotkey | null;
+	/** Seções extras ligadas/desligadas (id → ligada). Ver `isSectionEnabled`. */
+	sections: Record<string, boolean>;
+	/** Pasta do cofre com as imagens do usuário ("" = nenhuma). */
+	customFolder: string;
+	/** Caractere reservado para cada imagem do usuário (caminho → caractere). */
+	customChars: Record<string, string>;
 }
 
 /** Formato das configurações até a versão 1.0.1. */
@@ -52,7 +73,20 @@ const DEFAULT_SETTINGS: CheckboxStylesSettings = {
 	mobileMenuGesture: "tap",
 	uncheckAllButton: false,
 	uncheckAllHotkey: null,
+	sections: {},
+	customFolder: "",
+	customChars: {},
 };
+
+const isStringRecord = (value: unknown): value is Record<string, string> =>
+	typeof value === "object" &&
+	value !== null &&
+	Object.values(value).every((v) => typeof v === "string");
+
+const isBooleanRecord = (value: unknown): value is Record<string, boolean> =>
+	typeof value === "object" &&
+	value !== null &&
+	Object.values(value).every((v) => typeof v === "boolean");
 
 export default class CheckboxStylesPlugin extends Plugin {
 	settings: CheckboxStylesSettings = { ...DEFAULT_SETTINGS };
@@ -63,16 +97,30 @@ export default class CheckboxStylesPlugin extends Plugin {
 	private passingClick = false;
 	/** Depois de um "segurar", o clique que o navegador gera ao soltar é ignorado. */
 	private ignoreClickOn: { input: HTMLElement; until: number } | null = null;
+	private settingTab: CheckboxStyleSettingTab | null = null;
+	/** Seções das imagens do usuário (ver custom-packs.ts). */
+	customSections: StyleSection[] = [];
+	/** Faixa de caracteres das imagens do usuário esgotada. */
+	customFull = false;
+	private customStyles = new DynamicStyles();
+	/** Última aba aberta no menu de estilos. */
+	private lastSection: string | null = null;
+	private closePicker: (() => void) | null = null;
+	private rescanSoon = debounce(() => void this.rescanCustom(), 400, true);
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
-		this.addSettingTab(new CheckboxStyleSettingTab(this.app, this));
+		this.settingTab = new CheckboxStyleSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 		this.registerMarkdownPostProcessor(trackRenderedCheckboxes);
+		this.customStyles.attach(document);
 
 		this.applyDefaultStyle(this.settings.defaultStyle);
 		this.syncUncheckHotkey();
 		this.registerWindow(window);
 		this.app.workspace.onLayoutReady(() => {
+			void this.rescanCustom();
+			this.registerVaultEvents();
 			// Janelas destacadas (pop-out) têm o seu próprio document.
 			this.applyDefaultStyle(this.settings.defaultStyle);
 			this.syncUncheckButtons();
@@ -92,12 +140,15 @@ export default class CheckboxStylesPlugin extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on("window-open", (win) => {
 				setDefaultStyleClass(win.doc.body, this.settings.defaultStyle);
+				this.customStyles.attach(win.doc);
 				this.registerWindow(win.win);
 			})
 		);
 	}
 
 	onunload(): void {
+		this.closePicker?.();
+		this.customStyles.detachAll();
 		this.applyDefaultStyle(null);
 		for (const button of this.uncheckButtons.values()) {
 			button.remove();
@@ -131,7 +182,75 @@ export default class CheckboxStylesPlugin extends Plugin {
 			mobileMenuGesture: saved?.mobileMenuGesture === "hold" ? "hold" : "tap",
 			uncheckAllButton: saved?.uncheckAllButton === true,
 			uncheckAllHotkey: parseHotkey(saved?.uncheckAllHotkey),
+			sections: isBooleanRecord(saved?.sections) ? { ...saved.sections } : {},
+			customFolder: typeof saved?.customFolder === "string" ? saved.customFolder : "",
+			customChars: isStringRecord(saved?.customChars) ? { ...saved.customChars } : {},
 		};
+	}
+
+	/**
+	 * Pacotes embutidos começam desligados (o menu fica igual ao de antes até
+	 * a pessoa escolher); seções de imagens próprias começam ligadas.
+	 */
+	isSectionEnabled(id: string): boolean {
+		return this.settings.sections[id] ?? id.startsWith(CUSTOM_PREFIX);
+	}
+
+	async setSectionEnabled(id: string, enabled: boolean): Promise<void> {
+		await this.updateSettings({ sections: { ...this.settings.sections, [id]: enabled } });
+	}
+
+	async setCustomFolder(path: string): Promise<void> {
+		const folder = path.trim() ? normalizePath(path.trim()) : "";
+		if (folder === "/" || folder === this.settings.customFolder) return;
+		await this.updateSettings({ customFolder: folder });
+		await this.rescanCustom();
+	}
+
+	/** Seções do menu, na ordem das abas. */
+	private menuSections(): StyleSection[] {
+		return [
+			BASIC_SECTION,
+			...[...PACKS, ...this.customSections].filter((section) =>
+				this.isSectionEnabled(section.id)
+			),
+		];
+	}
+
+	/** Relê a pasta de imagens do usuário e atualiza CSS, menu e configurações. */
+	private async rescanCustom(): Promise<void> {
+		const scan = scanCustomFolder(this.app, this.settings.customFolder, this.settings.customChars);
+		this.customSections = scan.sections;
+		this.customFull = scan.full;
+		this.customStyles.set(scan.css);
+		if (scan.allocated) await this.saveData(this.settings);
+		this.settingTab?.refresh();
+	}
+
+	private registerVaultEvents(): void {
+		const inFolder = (path: string): boolean => {
+			const folder = this.settings.customFolder;
+			return !!folder && (path === folder || path.startsWith(`${folder}/`));
+		};
+		const onChange = (file: TAbstractFile) => {
+			if (inFolder(file.path)) this.rescanSoon();
+		};
+		this.registerEvent(this.app.vault.on("create", onChange));
+		this.registerEvent(this.app.vault.on("modify", onChange));
+		this.registerEvent(this.app.vault.on("delete", onChange));
+		this.registerEvent(
+			this.app.vault.on("rename", (file, oldPath) => {
+				let changed = moveCustomChars(this.settings.customChars, oldPath, file.path);
+				// A própria pasta de imagens foi renomeada ou movida.
+				const folder = this.settings.customFolder;
+				if (folder && (oldPath === folder || folder.startsWith(`${oldPath}/`))) {
+					this.settings.customFolder = file.path + folder.slice(oldPath.length);
+					changed = true;
+				}
+				if (changed) void this.saveData(this.settings);
+				if (changed || inFolder(file.path) || inFolder(oldPath)) this.rescanSoon();
+			})
+		);
 	}
 
 	/** Registra no Obsidian o atalho escolhido nas configurações do plugin. */
@@ -216,7 +335,7 @@ export default class CheckboxStylesPlugin extends Plugin {
 			if (this.settings.mobileMenuGesture === "tap") {
 				evt.preventDefault();
 				evt.stopImmediatePropagation();
-				this.showStyleMenu(input, task, this.menuPosition(evt, input));
+				this.showStyleMenu(input, task, this.menuPosition(evt, input), isKeyboardClick(evt));
 			}
 			// Com "segurar para o menu", o toque segue nativo: marca/desmarca.
 			return;
@@ -226,7 +345,7 @@ export default class CheckboxStylesPlugin extends Plugin {
 		if (button === this.settings.menuButton) {
 			evt.preventDefault();
 			evt.stopImmediatePropagation();
-			this.showStyleMenu(input, task, this.menuPosition(evt, input));
+			this.showStyleMenu(input, task, this.menuPosition(evt, input), isKeyboardClick(evt));
 			return;
 		}
 		// O outro botão marca/desmarca. No esquerdo isso já é o comportamento
@@ -310,7 +429,7 @@ export default class CheckboxStylesPlugin extends Plugin {
 
 	/** Onde abrir o menu: no ponteiro, ou abaixo da checkbox se veio do teclado. */
 	private menuPosition(evt: MouseEvent, input: HTMLElement): { x: number; y: number } {
-		if (evt.type === "click" && evt.detail === 0) {
+		if (isKeyboardClick(evt)) {
 			const rect = input.getBoundingClientRect();
 			return { x: rect.left, y: rect.bottom };
 		}
@@ -320,64 +439,25 @@ export default class CheckboxStylesPlugin extends Plugin {
 	private showStyleMenu(
 		input: HTMLElement,
 		task: TaskTarget,
-		position: { x: number; y: number }
+		position: { x: number; y: number },
+		keyboard = false
 	): void {
-		// O menu nativo do sistema não renderiza as checkboxes dos itens.
-		const menu = new Menu().setUseNativeMenu(false);
-		const rows: HTMLElement[] = [];
-		const addOption = (option: {
-			styleId: string;
-			name: string;
-			char: string;
-			selected: boolean;
-		}) =>
-			menu.addItem((item) =>
-				item
-					.setTitle(
-						createFragment((frag) => {
-							const row = frag.createSpan({
-								cls: "cbs-menu-item",
-								attr: { "data-cbs-style": option.styleId },
-							});
-							createCheckbox(row, !isUnchecked(option.char), true);
-							row.createSpan({ cls: "cbs-preview-text", text: option.name });
-							rows.push(row);
-						})
-					)
-					.setChecked(option.selected)
-					.onClick(() => task.setChar(option.char))
-			);
-
-		STYLE_GROUPS.forEach((group, index) => {
-			if (index > 0) menu.addSeparator();
-			for (const style of group) {
-				addOption({
-					styleId: style.id,
-					name: style.name,
-					char: style.char,
-					selected: task.char === style.char,
-				});
-			}
+		this.closePicker?.();
+		this.closePicker = openStylePicker({
+			doc: input.ownerDocument,
+			position,
+			sections: this.menuSections(),
+			currentChar: task.char,
+			preferredSection: this.lastSection,
+			unchecked: isUnchecked(task.char)
+				? null
+				: { styleId: this.settings.defaultStyle, char: UNCHECKED_CHAR },
+			keyboard,
+			onPick: (char) => task.setChar(char),
+			onSectionChange: (id) => {
+				this.lastSection = id;
+			},
 		});
-		if (!isUnchecked(task.char)) {
-			menu.addSeparator();
-			addOption({
-				styleId: this.settings.defaultStyle,
-				name: "Unchecked",
-				char: UNCHECKED_CHAR,
-				selected: false,
-			});
-		}
-		scrollOnlyWithKeyboard(menu, rows, input.ownerDocument.defaultView ?? window);
-		// A classe precisa existir antes de abrir: o Obsidian posiciona o menu
-		// pela altura dele, e é ela que limita a altura (ver styles.base.css).
-		(menu as unknown as { dom?: HTMLElement }).dom?.addClass("cbs-menu");
-		menu.showAtPosition(position, input.ownerDocument);
-		// Ao abrir, o Obsidian liga na área de rolagem um "mousemove" que move
-		// a lista conforme a posição do mouse; barra esse evento antes dele.
-		rows[0]
-			?.closest(".menu-scroll")
-			?.addEventListener("mousemove", (e) => e.stopImmediatePropagation(), true);
 	}
 
 	private applyDefaultStyle(id: string | null): void {
@@ -391,35 +471,8 @@ export default class CheckboxStylesPlugin extends Plugin {
 	}
 }
 
-/**
- * O menu do Obsidian rola o item para a vista sempre que ele é selecionado,
- * inclusive ao passar o mouse; numa lista com rolagem isso faz o menu andar
- * sozinho. Mantém esse comportamento só para a navegação pelo teclado.
- */
-function scrollOnlyWithKeyboard(menu: Menu, rows: HTMLElement[], win: Window): void {
-	let usingKeyboard = false;
-	const onKeyDown = () => {
-		usingKeyboard = true;
-	};
-	const onPointerMove = () => {
-		usingKeyboard = false;
-	};
-	win.addEventListener("keydown", onKeyDown, true);
-	win.addEventListener("pointermove", onPointerMove, true);
-	menu.onHide(() => {
-		win.removeEventListener("keydown", onKeyDown, true);
-		win.removeEventListener("pointermove", onPointerMove, true);
-	});
-
-	for (const row of rows) {
-		const item = row.closest<HTMLElement>(".menu-item");
-		if (!item) continue;
-		const scrollIntoView = item.scrollIntoView.bind(item);
-		item.scrollIntoView = (arg?: boolean | ScrollIntoViewOptions) => {
-			if (usingKeyboard) scrollIntoView(arg);
-		};
-	}
-}
+/** Clique gerado pelo teclado (Espaço/Enter na checkbox). */
+const isKeyboardClick = (evt: MouseEvent): boolean => evt.type === "click" && evt.detail === 0;
 
 function setDefaultStyleClass(body: HTMLElement, id: string | null): void {
 	for (const style of CHECKBOX_STYLES) {
