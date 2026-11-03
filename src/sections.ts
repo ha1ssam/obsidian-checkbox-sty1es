@@ -23,13 +23,27 @@ export type { StyleSection } from "./packs/pack";
 export const BASIC_SECTION: StyleSection = {
 	id: "basic",
 	name: "Basic",
-	description: "The 29 built-in checkbox styles and icons.",
+	description: "The 10 checkbox shapes.",
 	layout: "list",
-	groups: [BOX_STYLES, ICON_STYLES],
+	groups: [BOX_STYLES],
 };
 
-/** Pacotes extras, na ordem das abas do menu. */
+/**
+ * Os 19 ícones básicos. Até a 1.1.1 ficavam na seção básica; hoje são uma
+ * seção própria, ligada por padrão (ver `isSectionEnabled`). Os caracteres
+ * continuam os mesmos, então as tarefas já marcadas não mudam.
+ */
+export const ICON_SECTION: StyleSection = {
+	id: "icons",
+	name: "Icons",
+	description: "Colored icons: in progress, question, important, star, idea and more.",
+	layout: "list",
+	groups: [ICON_STYLES],
+};
+
+/** Seções extras, na ordem das abas do menu. */
 export const PACKS: StyleSection[] = [
+	ICON_SECTION,
 	PRIORITY,
 	STATUS,
 	WORK,

@@ -193,15 +193,105 @@ input[type="checkbox"].cbs-checkbox {
 	margin-bottom: var(--size-2-3);
 }
 
-.cbs-picker-tabs {
+/* Barra com as abas (rolam) e o botão "Add styles" (fixo à direita). */
+.cbs-picker-nav {
 	display: flex;
 	flex: none;
+	align-items: center;
 	gap: var(--size-2-2);
-	overflow-x: auto;
 	padding-bottom: var(--size-2-3);
 	margin-bottom: var(--size-2-3);
 	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.cbs-picker-tabs {
+	display: flex;
+	flex: 1 1 auto;
+	min-width: 0;
+	gap: var(--size-2-2);
+	overflow-x: auto;
 	scrollbar-width: none;
+}
+
+.cbs-picker-add {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--size-2-2);
+	padding: var(--size-2-1) var(--size-2-3);
+	border-radius: var(--radius-s);
+	color: var(--text-muted);
+	white-space: nowrap;
+	cursor: var(--cursor);
+}
+
+.cbs-picker-add:hover,
+.cbs-picker-add:focus-visible {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+	outline: none;
+}
+
+.cbs-picker-add.is-active {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.cbs-picker-add-icon {
+	display: flex;
+}
+
+.cbs-picker-add-icon svg {
+	width: var(--icon-s);
+	height: var(--icon-s);
+}
+
+/* Com várias abas, o botão vira só o "+". */
+.cbs-picker.has-tabs .cbs-picker-add-label {
+	display: none;
+}
+
+/* Lista "Add styles": uma linha por seção, com amostra e interruptor. */
+.cbs-picker-hint {
+	padding: var(--size-2-2) var(--size-4-2) var(--size-2-3);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.cbs-picker-section-info {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: var(--size-2-2);
+	min-width: 0;
+}
+
+.cbs-picker-sample {
+	display: flex;
+	gap: var(--size-2-3);
+	overflow: hidden;
+}
+
+.cbs-picker-sample > span {
+	display: flex;
+}
+
+.cbs-picker-toggle {
+	flex: none;
+	pointer-events: none;
+}
+
+.cbs-picker-more {
+	color: var(--text-muted);
+}
+
+.cbs-picker-more-icon {
+	display: flex;
+}
+
+.cbs-picker-more-icon svg {
+	width: var(--icon-s);
+	height: var(--icon-s);
 }
 
 .cbs-picker-tabs::-webkit-scrollbar {

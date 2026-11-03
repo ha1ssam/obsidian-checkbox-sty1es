@@ -20,7 +20,7 @@ import {
 	scanCustomFolder,
 } from "./custom-packs";
 import { StoredHotkey, parseHotkey } from "./hotkey";
-import { BASIC_SECTION, PACKS, StyleSection } from "./sections";
+import { BASIC_SECTION, ICON_SECTION, PACKS, StyleSection } from "./sections";
 import { CheckboxStyleSettingTab } from "./settings";
 import { openStylePicker } from "./style-picker";
 import {
@@ -60,6 +60,12 @@ interface CheckboxStylesSettings {
 	customFolder: string;
 	/** Caractere reservado para cada imagem do usuário (caminho → caractere). */
 	customChars: Record<string, string>;
+}
+
+/** Janela de configurações do Obsidian (fora da API pública). */
+interface AppSetting {
+	open(): void;
+	openTabById(id: string): unknown;
 }
 
 /** Formato das configurações até a versão 1.0.1. */
@@ -190,10 +196,19 @@ export default class CheckboxStylesPlugin extends Plugin {
 
 	/**
 	 * Pacotes embutidos começam desligados (o menu fica igual ao de antes até
-	 * a pessoa escolher); seções de imagens próprias começam ligadas.
+	 * a pessoa escolher); os ícones básicos e as seções de imagens próprias
+	 * começam ligados.
 	 */
 	isSectionEnabled(id: string): boolean {
-		return this.settings.sections[id] ?? id.startsWith(CUSTOM_PREFIX);
+		return this.settings.sections[id] ?? (id === ICON_SECTION.id || id.startsWith(CUSTOM_PREFIX));
+	}
+
+	/** Abre as configurações do plugin. */
+	openSettings(): void {
+		const setting = (this.app as unknown as { setting?: AppSetting }).setting;
+		if (!setting) return;
+		setting.open();
+		setting.openTabById(this.manifest.id);
 	}
 
 	async setSectionEnabled(id: string, enabled: boolean): Promise<void> {
@@ -207,13 +222,16 @@ export default class CheckboxStylesPlugin extends Plugin {
 		await this.rescanCustom();
 	}
 
+	/** Seções que podem ser ligadas e desligadas, na ordem das abas. */
+	private extraSections(): StyleSection[] {
+		return [...PACKS, ...this.customSections];
+	}
+
 	/** Seções do menu, na ordem das abas. */
 	private menuSections(): StyleSection[] {
 		return [
 			BASIC_SECTION,
-			...[...PACKS, ...this.customSections].filter((section) =>
-				this.isSectionEnabled(section.id)
-			),
+			...this.extraSections().filter((section) => this.isSectionEnabled(section.id)),
 		];
 	}
 
@@ -446,7 +464,11 @@ export default class CheckboxStylesPlugin extends Plugin {
 		this.closePicker = openStylePicker({
 			doc: input.ownerDocument,
 			position,
-			sections: this.menuSections(),
+			getSections: () => this.menuSections(),
+			getExtraSections: () => this.extraSections(),
+			isSectionEnabled: (id) => this.isSectionEnabled(id),
+			setSectionEnabled: (id, enabled) => this.setSectionEnabled(id, enabled),
+			openSettings: () => this.openSettings(),
 			currentChar: task.char,
 			preferredSection: this.lastSection,
 			unchecked: isUnchecked(task.char)
