@@ -1,12 +1,14 @@
 /**
  * Menu de estilos com abas por seção.
  *
- * Com só a seção básica ligada, é uma lista simples como o menu antigo. Com
- * pacotes extras, ganha uma barra de abas (uma por seção) e uma busca que
- * procura em todas as seções. Seções grandes (bandeiras, imagens do usuário)
- * aparecem em grade. No celular, abre como painel na parte de baixo da tela.
+ * Com só a seção básica ligada, é uma lista simples. Com seções extras, ganha
+ * uma barra de abas (uma por seção) e uma busca que procura em todas elas.
+ * Seções grandes (bandeiras, imagens do usuário) aparecem em grade. O botão
+ * "Add styles" ao lado das abas abre, dentro do próprio menu, a lista de
+ * seções para ligar e desligar. No celular, abre como painel na parte de
+ * baixo da tela.
  */
-import { Platform, setIcon } from "obsidian";
+import { Platform, ToggleComponent, setIcon } from "obsidian";
 import { CheckboxStyle } from "./checkbox-styles";
 import { StyleSection } from "./packs/pack";
 import { createCheckbox } from "./settings";
@@ -14,8 +16,13 @@ import { createCheckbox } from "./settings";
 export interface PickerOptions {
 	doc: Document;
 	position: { x: number; y: number };
-	/** Seções na ordem das abas; a primeira é a básica. */
-	sections: StyleSection[];
+	/** Seções ligadas, na ordem das abas; a primeira é a básica. */
+	getSections: () => StyleSection[];
+	/** Seções que podem ser ligadas e desligadas no "Add styles". */
+	getExtraSections: () => StyleSection[];
+	isSectionEnabled: (id: string) => boolean;
+	setSectionEnabled: (id: string, enabled: boolean) => Promise<void>;
+	openSettings: () => void;
 	/** Caractere atual da tarefa. */
 	currentChar: string;
 	/** Aba aberta se o caractere atual não estiver em nenhuma seção. */
@@ -29,60 +36,60 @@ export interface PickerOptions {
 }
 
 const ITEM = ".cbs-picker-item";
+/** Ícones de amostra por seção na lista "Add styles". */
+const SAMPLE_SIZE = 9;
 
 const normalize = (text: string): string =>
 	text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export function openStylePicker(options: PickerOptions): () => void {
-	const { doc, sections } = options;
+	const { doc } = options;
 	const win = doc.defaultView ?? window;
 	const previousFocus = doc.activeElement as HTMLElement | null;
-	const tabbed = sections.length > 1;
 	const sheet = Platform.isPhone;
+	let sections = options.getSections();
+	/** A lista "Add styles" está aberta no lugar dos estilos. */
+	let managing = false;
 
 	const backdrop = doc.body.createDiv({ cls: "cbs-picker-backdrop" });
 	const picker = doc.body.createDiv({
-		cls: ["cbs-picker", tabbed ? "has-tabs" : "is-simple", sheet ? "is-sheet" : "is-popover"],
+		cls: ["cbs-picker", sheet ? "is-sheet" : "is-popover"],
 		attr: { role: "dialog", "aria-label": "Checkbox style" },
 	});
 
-	let search: HTMLInputElement | null = null;
-	const tabs = new Map<string, HTMLElement>();
-	if (tabbed) {
-		search = picker.createEl("input", {
-			cls: "cbs-picker-search",
-			attr: {
-				type: "search",
-				placeholder: "Search styles…",
-				spellcheck: "false",
-				"aria-label": "Search styles",
-			},
-		});
-		const nav = picker.createDiv({ cls: "cbs-picker-tabs", attr: { role: "tablist" } });
-		for (const section of sections) {
-			const tab = nav.createDiv({
-				cls: "cbs-picker-tab",
-				text: section.name,
-				attr: { role: "tab", "aria-selected": "false" },
-			});
-			tab.addEventListener("click", () => {
-				if (search) search.value = "";
-				showSection(section.id);
-			});
-			tabs.set(section.id, tab);
-		}
-		// Rodinha vertical rola as abas na horizontal.
-		nav.addEventListener(
-			"wheel",
-			(evt) => {
-				if (Math.abs(evt.deltaY) > Math.abs(evt.deltaX)) {
-					nav.scrollLeft += evt.deltaY;
-					evt.preventDefault();
-				}
-			},
-			{ passive: false }
-		);
-	}
+	const search = picker.createEl("input", {
+		cls: "cbs-picker-search",
+		attr: {
+			type: "search",
+			placeholder: "Search styles…",
+			spellcheck: "false",
+			"aria-label": "Search styles",
+		},
+	});
+	const navBar = picker.createDiv({ cls: "cbs-picker-nav" });
+	const nav = navBar.createDiv({ cls: "cbs-picker-tabs", attr: { role: "tablist" } });
+	const addButton = navBar.createDiv({
+		cls: "cbs-picker-add",
+		attr: { role: "button", tabindex: "0", "aria-label": "Add styles", "aria-pressed": "false" },
+	});
+	setIcon(addButton.createSpan({ cls: "cbs-picker-add-icon" }), "plus");
+	addButton.createSpan({ cls: "cbs-picker-add-label", text: "Add styles" });
+	addButton.addEventListener("click", () => {
+		if (managing) showSection(currentSection);
+		else showManage();
+	});
+
+	// Rodinha vertical rola as abas na horizontal.
+	nav.addEventListener(
+		"wheel",
+		(evt) => {
+			if (Math.abs(evt.deltaY) > Math.abs(evt.deltaX)) {
+				nav.scrollLeft += evt.deltaY;
+				evt.preventDefault();
+			}
+		},
+		{ passive: false }
+	);
 
 	const body = picker.createDiv({ cls: "cbs-picker-body", attr: { role: "listbox" } });
 	const footer = picker.createDiv({ cls: "cbs-picker-footer" });
@@ -139,32 +146,71 @@ export function openStylePicker(options: PickerOptions): () => void {
 		});
 	};
 
-	let currentSection = sections[0].id;
-	const showSection = (id: string) => {
-		const section = sections.find((s) => s.id === id) ?? sections[0];
-		currentSection = section.id;
+	// ---------- Abas ----------
+
+	const tabs = new Map<string, HTMLElement>();
+	const renderTabs = () => {
+		nav.empty();
+		tabs.clear();
+		for (const section of sections) {
+			const tab = nav.createDiv({
+				cls: "cbs-picker-tab",
+				text: section.name,
+				attr: { role: "tab", "aria-selected": "false" },
+			});
+			tab.addEventListener("click", () => {
+				search.value = "";
+				showSection(section.id);
+			});
+			tabs.set(section.id, tab);
+		}
+	};
+
+	const markTab = (id: string | null) => {
 		for (const [tabId, tab] of tabs) {
-			const active = tabId === section.id;
+			const active = tabId === id;
 			tab.toggleClass("is-active", active);
 			tab.setAttribute("aria-selected", String(active));
 			if (active) {
-				const nav = tab.parentElement as HTMLElement;
 				if (tab.offsetLeft < nav.scrollLeft) nav.scrollLeft = tab.offsetLeft;
 				else if (tab.offsetLeft + tab.offsetWidth > nav.scrollLeft + nav.clientWidth) {
 					nav.scrollLeft = tab.offsetLeft + tab.offsetWidth - nav.clientWidth;
 				}
 			}
 		}
+		addButton.toggleClass("is-active", managing);
+		addButton.setAttribute("aria-pressed", String(managing));
+	};
+
+	/** Tamanho e partes do menu conforme o número de seções e a vista atual. */
+	const updateLayout = () => {
+		const tabbed = sections.length > 1;
+		const large = tabbed || managing;
+		picker.toggleClass("has-tabs", large);
+		picker.toggleClass("is-simple", !large);
+		search.toggle(tabbed && !managing);
+		footer.toggle(!managing);
+		place();
+	};
+
+	let currentSection = sections[0].id;
+	const showSection = (id: string) => {
+		const section = sections.find((s) => s.id === id) ?? sections[0];
+		currentSection = section.id;
+		managing = false;
+		markTab(section.id);
 		body.empty();
 		body.scrollTop = 0;
 		renderGroups(section);
+		updateLayout();
 		options.onSectionChange(section.id);
 	};
 
 	const showResults = (query: string) => {
+		managing = false;
+		markTab(null);
 		body.empty();
 		body.scrollTop = 0;
-		for (const tab of tabs.values()) tab.removeClass("is-active");
 		const terms = normalize(query).split(/\s+/).filter(Boolean);
 		const matches: { style: CheckboxStyle; section: StyleSection }[] = [];
 		for (const section of sections) {
@@ -184,11 +230,74 @@ export function openStylePicker(options: PickerOptions): () => void {
 		}
 	};
 
-	search?.addEventListener("input", () => {
-		const query = search?.value.trim() ?? "";
+	search.addEventListener("input", () => {
+		const query = search.value.trim();
 		if (query) showResults(query);
 		else showSection(currentSection);
 	});
+
+	// ---------- Add styles ----------
+
+	const showManage = () => {
+		managing = true;
+		search.value = "";
+		markTab(null);
+		body.empty();
+		body.scrollTop = 0;
+		body.createDiv({
+			cls: "cbs-picker-hint",
+			text: "Turn on a section to add its styles as a tab.",
+		});
+		const list = body.createDiv({ cls: "cbs-picker-list" });
+		for (const section of options.getExtraSections()) {
+			const enabled = options.isSectionEnabled(section.id);
+			const row = list.createDiv({
+				cls: ["cbs-picker-item", "cbs-picker-section"],
+				attr: {
+					role: "switch",
+					tabindex: "-1",
+					"aria-checked": String(enabled),
+					"aria-label": section.name,
+				},
+			});
+			const info = row.createDiv({ cls: "cbs-picker-section-info" });
+			info.createDiv({ cls: "cbs-picker-name", text: section.name });
+			const sample = info.createDiv({
+				cls: "cbs-picker-sample",
+				attr: { "aria-hidden": "true" },
+			});
+			for (const style of section.groups.flat().slice(0, SAMPLE_SIZE)) {
+				createCheckbox(sample.createSpan({ attr: { "data-cbs-style": style.id } }), true, true);
+			}
+			const toggle = new ToggleComponent(row).setValue(enabled);
+			toggle.toggleEl.addClass("cbs-picker-toggle");
+			row.addEventListener("click", () => {
+				const next = !options.isSectionEnabled(section.id);
+				toggle.setValue(next);
+				row.setAttribute("aria-checked", String(next));
+				void options.setSectionEnabled(section.id, next).then(() => {
+					if (closed) return;
+					sections = options.getSections();
+					if (!sections.some((s) => s.id === currentSection)) currentSection = sections[0].id;
+					renderTabs();
+					markTab(null);
+					updateLayout();
+				});
+			});
+		}
+		body.createDiv({ cls: "cbs-picker-separator" });
+		const more = body.createDiv({
+			cls: ["cbs-picker-item", "cbs-picker-more"],
+			attr: { role: "button", tabindex: "-1" },
+		});
+		setIcon(more.createSpan({ cls: "cbs-picker-more-icon" }), "settings");
+		more.createSpan({ cls: "cbs-picker-name", text: "Your own images and more options" });
+		more.addEventListener("click", () => {
+			close();
+			options.openSettings();
+		});
+		updateLayout();
+	};
 
 	if (options.unchecked) {
 		footer.createDiv({ cls: "cbs-picker-separator" });
@@ -199,6 +308,24 @@ export function openStylePicker(options: PickerOptions): () => void {
 		);
 	}
 
+	// ---------- Posição ----------
+
+	const place = () => {
+		if (sheet) return;
+		const margin = 8;
+		const { x, y } = options.position;
+		const rect = picker.getBoundingClientRect();
+		const maxLeft = win.innerWidth - rect.width - margin;
+		const left = Math.max(margin, Math.min(x, maxLeft));
+		let top = y;
+		if (y + rect.height > win.innerHeight - margin) {
+			top = y - rect.height >= margin ? y - rect.height : win.innerHeight - rect.height - margin;
+		}
+		picker.style.left = `${left}px`;
+		picker.style.top = `${Math.max(margin, top)}px`;
+	};
+
+	renderTabs();
 	const initial =
 		sections.find((s) => s.groups.some((g) => g.some((st) => st.char === options.currentChar))) ??
 		sections.find((s) => s.id === options.preferredSection) ??
@@ -225,7 +352,7 @@ export function openStylePicker(options: PickerOptions): () => void {
 	const switchTab = (step: number) => {
 		const index = sections.findIndex((s) => s.id === currentSection);
 		const next = sections[(index + step + sections.length) % sections.length];
-		if (search) search.value = "";
+		search.value = "";
 		showSection(next.id);
 		focusItem(items()[0]);
 	};
@@ -235,23 +362,31 @@ export function openStylePicker(options: PickerOptions): () => void {
 		if (!grid?.hasClass("cbs-picker-grid")) return 1;
 		return win.getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length || 1;
 	};
+	const searchVisible = () => search.isShown();
 
 	picker.addEventListener("keydown", (evt) => {
 		const all = items();
 		const active = doc.activeElement as HTMLElement | null;
 		const index = active ? all.indexOf(active) : -1;
 		const inSearch = active === search;
+		const onAdd = active === addButton;
 
 		switch (evt.key) {
 			case "Escape":
-				close();
+				if (managing) {
+					showSection(currentSection);
+					focusItem(items()[0]);
+				} else {
+					close();
+				}
 				break;
 			case "Enter":
 			case " ":
 				if (inSearch && evt.key === " ") return;
-				if (index >= 0) active?.click();
+				if (index >= 0 || onAdd) active?.click();
 				else if (inSearch) all[0]?.click();
 				else return;
+				if (onAdd) focusItem(items()[0]);
 				break;
 			case "ArrowDown":
 			case "ArrowUp": {
@@ -264,8 +399,8 @@ export function openStylePicker(options: PickerOptions): () => void {
 				const step = columnsOf(all[index]);
 				const target = index + (down ? step : -step);
 				if (target < 0) {
-					if (search) search.focus();
-					else focusItem(all[0]);
+					if (searchVisible()) search.focus();
+					else addButton.focus();
 				} else {
 					focusItem(all[Math.min(target, all.length - 1)]);
 				}
@@ -274,10 +409,10 @@ export function openStylePicker(options: PickerOptions): () => void {
 			case "ArrowLeft":
 			case "ArrowRight": {
 				const right = evt.key === "ArrowRight";
-				if (inSearch) return;
+				if (inSearch || managing) return;
 				if (index >= 0 && columnsOf(all[index]) > 1) {
 					focusItem(all[index + (right ? 1 : -1)] ?? all[index]);
-				} else if (tabbed) {
+				} else if (sections.length > 1) {
 					switchTab(right ? 1 : -1);
 				} else {
 					return;
@@ -304,23 +439,7 @@ export function openStylePicker(options: PickerOptions): () => void {
 	win.addEventListener("resize", close);
 	win.addEventListener("blur", close);
 
-	// ---------- Posição ----------
-
-	if (!sheet) {
-		const margin = 8;
-		const { x, y } = options.position;
-		const rect = picker.getBoundingClientRect();
-		const maxLeft = win.innerWidth - rect.width - margin;
-		const left = Math.max(margin, Math.min(x, maxLeft));
-		let top = y;
-		if (y + rect.height > win.innerHeight - margin) {
-			top = y - rect.height >= margin ? y - rect.height : win.innerHeight - rect.height - margin;
-		}
-		picker.style.left = `${left}px`;
-		picker.style.top = `${Math.max(margin, top)}px`;
-	}
-
-	if (options.keyboard || !search) {
+	if (options.keyboard || !searchVisible()) {
 		const all = items();
 		focusItem(all.find((item) => item.hasClass("is-selected")) ?? all[0]);
 	} else if (!Platform.isMobile) {

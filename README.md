@@ -2,7 +2,7 @@
 
 # Checkbox Sty1es
 
-Pick a visual style for each task checkbox in Obsidian. Clicking an unchecked task opens a menu with 29 styles: ten checkbox shapes and 19 colored icons. Each style changes how the checkbox looks and can apply a matching effect to the task text.
+Pick a visual style for each task checkbox in Obsidian. Clicking an unchecked task opens a menu with ten checkbox shapes and, in the **Icons** tab, 19 colored icons. Each style changes how the checkbox looks and can apply a matching effect to the task text.
 
 Turn on extra sections (priority, status, seasons, flags and more) or add your own images, such as team crests. Each one shows up as a tab in the menu.
 
@@ -23,7 +23,7 @@ Turn on extra sections (priority, status, seasons, flags and more) or add your o
 
 ## Icons
 
-Icon styles replace the checkbox with a colored icon. Most leave the text as it is.
+Icon styles replace the checkbox with a colored icon. They have their own **Icons** tab in the menu, which is on by default and can be turned off like the other sections. Most leave the text as it is.
 
 | Style | Text effect | Written to the note |
 |---|---|---|
@@ -49,7 +49,7 @@ Icon styles replace the checkbox with a colored icon. Most leave the text as it 
 
 ## Extra sections
 
-The 29 styles above are always in the menu. Extra sections are off by default; turn on the ones you want in the settings and they show up as tabs in the menu, with a search box that looks through all of them.
+The ten checkbox shapes are always in the menu, and the Icons tab is on by default. The extra sections below are off by default. Turn on the ones you want with **Add styles** (the + button next to the tabs in the menu) or in the settings, and they show up as tabs in the menu, with a search box that looks through all of them.
 
 | Section | Styles |
 |---|---|
@@ -103,7 +103,7 @@ The uncheck-all action unchecks every task in the open note. Use it again right 
 - **Uncheck-all button** — show the uncheck-all button at the top of each note.
 - **Uncheck-all hotkey** — record a keyboard shortcut for unchecking all tasks in the current note.
 - **Default style** — the style applied when you check a task with the other button, and the look of unchecked and `[x]` tasks.
-- **Menu sections** — turn each extra section on or off.
+- **Menu sections** — turn the Icons tab and each extra section on or off. The **Add styles** button in the menu does the same without leaving the note.
 - **Images folder** — the folder with your own images; each of its sections can also be turned off.
 
 ## Limitations
