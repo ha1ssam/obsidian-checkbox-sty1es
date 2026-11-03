@@ -1,4 +1,4 @@
-![Checkbox Sty1es: 29 checkbox styles and icons for Obsidian](./assets/banner.png)
+![Checkbox Sty1es: 29 checkbox styles, 12 extra sections and your own images for Obsidian](./assets/banner.png)
 
 # Checkbox Sty1es
 
