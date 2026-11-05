@@ -30,16 +30,31 @@ export const UNCHECKED_CHAR = " ";
 
 export const isUnchecked = (char: string): boolean => char === UNCHECKED_CHAR;
 
-/** Checkboxes do modo leitura, registradas pelo post processor. */
-const renderedCheckboxes = new WeakMap<HTMLElement, RenderedSection>();
+/**
+ * Seções do modo leitura com tarefas, registradas pelo post processor.
+ *
+ * Guardamos a seção, e não cada checkbox: outros plugins (o Tasks, por
+ * exemplo) trocam os itens da lista por elementos novos depois que a seção é
+ * renderizada, mas a seção continua a mesma.
+ */
+const renderedSections = new WeakMap<HTMLElement, RenderedSection>();
 
 export function trackRenderedCheckboxes(
 	el: HTMLElement,
 	ctx: MarkdownPostProcessorContext
 ): void {
-	el.querySelectorAll<HTMLElement>("input.task-list-item-checkbox").forEach(
-		(input) => renderedCheckboxes.set(input, { ctx, el })
-	);
+	if (el.querySelector("input.task-list-item-checkbox")) {
+		renderedSections.set(el, { ctx, el });
+	}
+}
+
+/** A seção registrada que contém o elemento. */
+function findRenderedSection(el: HTMLElement): RenderedSection | null {
+	for (let node: HTMLElement | null = el; node; node = node.parentElement) {
+		const section = renderedSections.get(node);
+		if (section) return section;
+	}
+	return null;
 }
 
 /**
@@ -94,7 +109,7 @@ function resolveRenderedTask(
 	view: MarkdownView,
 	input: HTMLElement
 ): TaskTarget | null {
-	const rendered = renderedCheckboxes.get(input);
+	const rendered = findRenderedSection(input);
 	const item = input.closest("li");
 	const relativeLine = Number(item?.dataset.line);
 	if (!rendered || !item || !Number.isInteger(relativeLine)) return null;
