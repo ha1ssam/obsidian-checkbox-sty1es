@@ -1,0 +1,65 @@
+/* Tema escuro padrão do Obsidian (o necessário para o plugin). */
+:root {
+	--accent: #8b6cef;
+	--background-primary: #1e1e1e;
+	--background-secondary: #262626;
+	--background-modifier-border: #363636;
+	--background-modifier-border-hover: #3f3f3f;
+	--background-modifier-border-focus: #5c5c5c;
+	--background-modifier-hover: rgba(255, 255, 255, 0.067);
+	--background-modifier-active-hover: rgba(139, 108, 239, 0.15);
+	--background-modifier-form-field: #1e1e1e;
+	--text-normal: #dadada;
+	--text-muted: #a3a3a3;
+	--text-faint: #666;
+	--text-accent: #a68af9;
+	--text-error: #fb464c;
+	--text-on-accent: #fff;
+	--interactive-accent: var(--accent);
+	--color-red: #fb464c; --color-orange: #e9973f; --color-yellow: #e0de71; --color-green: #44cf6e;
+	--color-cyan: #53dfdd; --color-blue: #2a8bff; --color-purple: #a882ff; --color-pink: #fa99cd;
+	--checkbox-size: 15px;
+	--checkbox-radius: 4px;
+	--checkbox-color: var(--interactive-accent);
+	--checkbox-color-hover: #9d83f2;
+	--checkbox-border-color: var(--text-faint);
+	--checkbox-border-color-hover: var(--text-muted);
+	--checkbox-marker-color: var(--background-primary);
+	--checklist-done-color: var(--text-muted);
+	--radius-s: 4px; --radius-m: 8px; --radius-l: 12px;
+	--size-2-1: 2px; --size-2-2: 4px; --size-2-3: 6px;
+	--size-4-1: 4px; --size-4-2: 8px; --size-4-3: 12px; --size-4-4: 16px;
+	--icon-s: 16px;
+	--font-ui-smaller: 12px; --font-ui-small: 13px; --font-ui-medium: 15px;
+	--font-normal: 400; --font-semibold: 600; --font-bold: 700;
+	--line-height-tight: 1.3;
+	--layer-menu: 65;
+	--cursor: pointer;
+	--shadow-s: 0 1px 2px rgba(0,0,0,.12), 0 3.4px 6.7px rgba(0,0,0,.18), 0 15px 30px rgba(0,0,0,.35);
+}
+input[type="checkbox"] {
+	-webkit-appearance: none; appearance: none;
+	width: var(--checkbox-size); height: var(--checkbox-size);
+	margin: 0; flex: none; cursor: pointer;
+}
+input[type="search"] {
+	-webkit-appearance: none; appearance: none;
+	height: 30px; padding: 0 10px; box-sizing: border-box;
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border); border-radius: 5px;
+	color: var(--text-normal); font: inherit; font-size: var(--font-ui-small); outline: none;
+}
+input[type="search"]::placeholder { color: var(--text-faint); }
+.svg-icon { width: var(--icon-s); height: var(--icon-s); }
+.checkbox-container {
+	position: relative; flex: none; width: 36px; height: 20px; border-radius: 18px;
+	background: var(--background-modifier-border-hover);
+}
+.checkbox-container input { display: none; }
+.checkbox-container::after {
+	content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+	border-radius: 50%; background: #ddd; transition: none;
+}
+.checkbox-container.is-enabled { background: var(--interactive-accent); }
+.checkbox-container.is-enabled::after { left: 18px; background: #fff; }
+input[type="checkbox"]::after { position: absolute; }
