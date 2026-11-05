@@ -86,7 +86,7 @@ export function recordHotkey(
 		const hasCommandModifier = modifiers.some((m) => m !== "Shift");
 		if (!key || (!hasCommandModifier && !isFunctionKey)) {
 			// Uma tecla sozinha dispararia enquanto a pessoa digita.
-			new Notice("Use Ctrl, Alt or Cmd together with a key.");
+			new Notice("Add a modifier key to the shortcut.");
 			return false;
 		}
 		if (isEditingShortcut({ modifiers, key })) {
