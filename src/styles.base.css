@@ -210,7 +210,6 @@ input[type="checkbox"].cbs-checkbox {
 	min-width: 0;
 	gap: var(--size-2-2);
 	overflow-x: auto;
-	scrollbar-width: none;
 }
 
 .cbs-picker-add {
