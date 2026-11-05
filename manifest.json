@@ -1,8 +1,8 @@
 {
 	"id": "checkbox-styles",
 	"name": "Checkbox Sty1es",
-	"version": "1.2.1",
-	"minAppVersion": "1.4.0",
+	"version": "1.2.2",
+	"minAppVersion": "1.5.8",
 	"description": "Pick a checkbox style or icon for each task from a click menu, each with its own text effect.",
 	"author": "Haissam Makki",
 	"isDesktopOnly": false
