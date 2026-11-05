@@ -2,3 +2,6 @@ node_modules/
 main.js
 styles.css
 data.json
+
+# Imagens de divulgação: arquivo compilado
+promo/.cache/
